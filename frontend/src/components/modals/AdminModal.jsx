@@ -5,13 +5,8 @@ import { getUsers, getMe, createUser, deleteUser, updateUser, disable2fa, getAud
 import { setup2fa, confirm2fa } from '../../api/auth';
 import { getUser } from '../../store/auth';
 import { useCustomise, useCustomiseUpdate, resetAllCustomisation, DEFAULTS, getSections, DEFAULT_SECTIONS, getAllCategories } from '../../hooks/useCustomise';
+import AppIcon, { GENERIC_ICONS } from '../ui/AppIcon';
 
-const ICON_OPTIONS = [
-  '🖥️', '💾', '🎬', '🎞️', '🛡️', '🕳️', '📈', '🔐', '🌐', '🐳', '📊', '🔗',
-  '🖧', '💿', '🗄️', '🔒', '🔑', '📡', '⚙️', '🧩', '📦', '🗃️', '🏠', '☁️',
-  '🎵', '🎮', '📷', '📁', '🛠️', '💻', '📋', '🧪', '🚀', '🔍', '📝', '🤖',
-  '🗂️', '🌍', '⛁', '🪪', '📬', '🔔', '💡', '🧲', '📥', '📤', '🔄', '🏗️',
-];
 
 const APP_TYPE_CONFIG = {
   linux: {
@@ -66,8 +61,11 @@ const APP_TYPE_CONFIG = {
     credFields: [{ key: 'api_key', label: 'API Key', placeholder: 'Settings → API Keys', type: 'password' }],
   },
   vaultwarden: {
-    label: 'Vaultwarden', defaultAuth: 'none', defaultCategory: 'Security', defaultIcon: '🔐',
-    credFields: [],
+    label: 'Vaultwarden', defaultAuth: 'api_key', defaultCategory: 'Security', defaultIcon: '🔐',
+    credFields: [
+      { key: 'admin_token', label: 'Admin Token', placeholder: 'ADMIN_TOKEN from your Vaultwarden config', type: 'password', optional: true },
+    ],
+    credHint: 'Optional — without the admin token, only online/offline status is shown. With it, you get user counts, vault items, 2FA stats, and more.',
   },
   nginx_proxy: {
     label: 'Nginx Proxy Manager', defaultAuth: 'user_pass', defaultCategory: 'Network', defaultIcon: '🌐',
@@ -156,6 +154,17 @@ const APP_TYPE_CONFIG = {
     ],
     credHint: 'Uses your Open-WebUI login credentials to authenticate. The dashboard signs in automatically to fetch models and status.',
   },
+  freshrss: {
+    label: 'FreshRSS',
+    defaultAuth: 'user_pass',
+    defaultCategory: 'Misc',
+    defaultIcon: '\uD83D\uDCF0',
+    credFields: [
+      { key: 'username', label: 'Username', placeholder: 'Your FreshRSS username', type: 'text' },
+      { key: 'password', label: 'API Password', placeholder: 'FreshRSS API password (not login password)', type: 'password' },
+    ],
+    credHint: 'Uses the Google Reader API. Set an API password in FreshRSS: Settings \u2192 Profile \u2192 API password. This is separate from your login password.',
+  },
   linkding: {
     label: 'Linkding', defaultAuth: 'api_key', defaultCategory: 'Misc', defaultIcon: '🔗',
     credFields: [{ key: 'api_key', label: 'API Token', placeholder: 'Settings → REST API', type: 'password' }],
@@ -199,6 +208,13 @@ const APP_TYPE_CONFIG = {
     label: 'phpMyAdmin', defaultAuth: 'none', defaultCategory: 'Infrastructure', defaultIcon: '🗄️',
     credFields: [],
   },
+  unifi: {
+    label: 'UniFi Network', defaultAuth: 'user_pass', defaultCategory: 'Network', defaultIcon: '🌐',
+    credFields: [
+      { key: 'username', label: 'Username', placeholder: 'Local admin username' },
+      { key: 'password', label: 'Password', placeholder: 'Password', secret: true },
+    ],
+  },
   generic: {
     label: 'Generic (HTTP Ping)', defaultAuth: 'none', defaultCategory: 'Other', defaultIcon: '🔗',
     credFields: [],
@@ -206,8 +222,6 @@ const APP_TYPE_CONFIG = {
 };
 
 const APP_TYPES = Object.keys(APP_TYPE_CONFIG);
-
-/* ── Shared input/button styles ── */
 const inputCls = 'w-full bg-s1 border border-bd2 rounded-[var(--radius-inner)] py-[8px] px-[11px] text-[13px] text-t outline-none focus:border-[rgba(255,255,255,0.2)] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.04)]';
 const labelCls = 'block text-[12px] font-medium text-[#a1a1aa] mb-[5px]';
 const btnPrimary = 'w-full py-[9px] bg-t text-bg rounded-[var(--radius-inner)] text-[14px] font-semibold hover:opacity-88 transition-opacity disabled:opacity-35';
@@ -236,7 +250,7 @@ export default function AdminModal({ onClose }) {
         <div className="flex items-center justify-between p-[26px] pb-0">
           <h2 className="text-[17px] font-semibold tracking-[-0.3px]">Settings</h2>
           <button onClick={onClose}
-            className="w-[30px] h-[30px] bg-s2 border border-bd rounded-[var(--radius-inner)] flex items-center justify-center text-t3 hover:text-t hover:bg-s3 transition-colors text-[14px]">
+            className="w-[30px] h-[30px] bg-s2 border border-bd rounded-[var(--radius-inner)] flex items-center justify-center text-[#a1a1aa] hover:text-t hover:bg-s3 transition-colors text-[14px]">
             &#x2715;
           </button>
         </div>
@@ -266,8 +280,6 @@ export default function AdminModal({ onClose }) {
     </div>
   );
 }
-
-/* ── Manage Apps ── */
 function ManageApps() {
   const queryClient = useQueryClient();
   const { data: apps = [] } = useQuery({ queryKey: ['apps'], queryFn: getApps });
@@ -291,7 +303,7 @@ function ManageApps() {
       {apps.map(app => (
         <div key={app.id} className="flex items-center justify-between py-[10px] px-[13px] bg-s2 rounded-[var(--radius-inner)] mb-[5px]">
           <div className="flex items-center gap-[10px] min-w-0">
-            <span className="text-[18px]">{app.icon}</span>
+            <AppIcon type={app.type} icon={app.icon} size={30} />
             <div className="min-w-0">
               <div className="text-[13px] font-medium truncate">{app.name}</div>
               <div className="text-[11px] text-[#a1a1aa] font-mono truncate">{app.url}</div>
@@ -311,37 +323,6 @@ function ManageApps() {
     </div>
   );
 }
-
-/* ── Icon Picker ── */
-function IconPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button type="button"
-        className={`${inputCls} flex items-center gap-[8px] text-left`}
-        onClick={() => setOpen(o => !o)}>
-        <span className="text-[18px]">{value || '🔗'}</span>
-        <span className="text-[#a1a1aa] text-[12px]">Click to change</span>
-      </button>
-      {open && (
-        <div className="absolute z-50 top-full left-0 mt-[4px] bg-s1 border border-bd2 rounded-[var(--radius-inner)] p-[10px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] w-[280px]">
-          <div className="grid grid-cols-8 gap-[4px]">
-            {ICON_OPTIONS.map(icon => (
-              <button key={icon} type="button"
-                className={`w-[30px] h-[30px] flex items-center justify-center rounded-[6px] text-[16px] hover:bg-s3 transition-colors
-                  ${icon === value ? 'bg-s3 ring-1 ring-bd2' : ''}`}
-                onClick={() => { onChange(icon); setOpen(false); }}>
-                {icon}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Add / Edit App Form ── */
 function AppForm({ app, onDone }) {
   const isEdit = !!app;
   const queryClient = useQueryClient();
@@ -352,8 +333,7 @@ function AppForm({ app, onDone }) {
 
   const [form, setForm] = useState({
     name: app?.name || '', url: app?.url || '', open_url: app?.open_url || '', type: initialType,
-    category: app?.category || typeConfig.defaultCategory,
-    icon: app?.icon || typeConfig.defaultIcon,
+    category: app?.category || typeConfig.defaultCategory, icon: app?.icon || 'grid',
     poll_interval: app?.poll_interval || 30, sort_order: app?.sort_order || 0,
   });
   const [creds, setCreds] = useState({});
@@ -364,7 +344,6 @@ function AppForm({ app, onDone }) {
   const currentConfig = APP_TYPE_CONFIG[form.type] || APP_TYPE_CONFIG.generic;
   const credFields = currentConfig.credFields || [];
 
-  // Fetch existing credentials when editing
   useEffect(() => {
     if (!isEdit || !app?.has_credential) return;
     getAppCredential(app.id).then(data => {
@@ -382,7 +361,6 @@ function AppForm({ app, onDone }) {
     setForm(f => ({
       ...f, type: newType,
       category: f.category === (APP_TYPE_CONFIG[f.type]?.defaultCategory || 'Other') ? config.defaultCategory : f.category,
-      icon: f.icon === (APP_TYPE_CONFIG[f.type]?.defaultIcon || '🔗') ? config.defaultIcon : f.icon,
     }));
     setCreds({});
   };
@@ -401,7 +379,7 @@ function AppForm({ app, onDone }) {
     const hasNewCreds = Object.keys(credential).length > 0;
     mutation.mutate({
       name: form.name, url: form.url, open_url: form.open_url || undefined, type: form.type, category: form.category,
-      auth_type: currentConfig.defaultAuth, icon: form.icon || undefined,
+      auth_type: currentConfig.defaultAuth, icon: form.type === 'generic' ? form.icon : undefined,
       poll_interval: parseInt(form.poll_interval) || 30, sort_order: parseInt(form.sort_order) || 0,
       credential: hasNewCreds ? credential : undefined,
     });
@@ -425,6 +403,23 @@ function AppForm({ app, onDone }) {
             {APP_TYPES.map(t => <option key={t} value={t}>{APP_TYPE_CONFIG[t].label}</option>)}
           </select>
         </div>
+        {form.type === 'generic' && (
+          <div className="col-span-2">
+            <label className={labelCls}>Icon</label>
+            <div className="grid grid-cols-9 gap-[4px] p-[8px] bg-s2 rounded-[var(--radius-inner)] border border-bd">
+              {Object.entries(GENERIC_ICONS).map(([key, { label, color, path }]) => (
+                <button key={key} type="button" title={label}
+                  className={`w-[34px] h-[34px] flex items-center justify-center rounded-[6px] transition-colors hover:bg-s3
+                    ${form.icon === key ? 'bg-s3 ring-1 ring-accent' : ''}`}
+                  onClick={() => set('icon', key)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill={color} xmlns="http://www.w3.org/2000/svg">
+                    <path d={path} />
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <label className={labelCls}>Name *</label>
           <input className={inputCls} required value={form.name} onChange={e => set('name', e.target.value)} placeholder={currentConfig.label} />
@@ -444,10 +439,6 @@ function AppForm({ app, onDone }) {
         <div>
           <label className={labelCls}>Poll Interval (s)</label>
           <input className={inputCls} type="number" min="10" value={form.poll_interval} onChange={e => set('poll_interval', e.target.value)} />
-        </div>
-        <div>
-          <label className={labelCls}>Icon</label>
-          <IconPicker value={form.icon} onChange={v => set('icon', v)} />
         </div>
         <div>
           <label className={labelCls}>Sort Order</label>
@@ -518,8 +509,6 @@ function AppForm({ app, onDone }) {
     </form>
   );
 }
-
-/* ── Manage Users ── */
 function ManageUsers() {
   const queryClient = useQueryClient();
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: getUsers });
@@ -575,8 +564,6 @@ function ManageUsers() {
     </div>
   );
 }
-
-/* ── Create / Edit User Form ── */
 function UserForm({ user, onDone }) {
   const isEdit = !!user;
   const queryClient = useQueryClient();
@@ -631,8 +618,6 @@ function UserForm({ user, onDone }) {
     </form>
   );
 }
-
-/* ── Security Settings ── */
 function SecuritySettings() {
   const queryClient = useQueryClient();
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: () => getMe() });
@@ -670,8 +655,6 @@ function InfoBox({ label, value, color, action }) {
     </div>
   );
 }
-
-/* ── Change Password ── */
 function ChangePassword({ onDone }) {
   const currentUser = getUser();
   const [form, setForm] = useState({ current: '', newPass: '', confirm: '' });
@@ -729,8 +712,6 @@ function ChangePassword({ onDone }) {
     </form>
   );
 }
-
-/* ── 2FA Setup ── */
 function Setup2FA({ onDone }) {
   const [step, setStep] = useState('loading');
   const [qr, setQr] = useState('');
@@ -801,8 +782,6 @@ function Setup2FA({ onDone }) {
     </div>
   );
 }
-
-/* ── Audit Log ── */
 function AuditLog() {
   const [page, setPage] = useState(0);
   const limit = 25;
@@ -847,9 +826,6 @@ function AuditLog() {
     </div>
   );
 }
-
-/* ── Customise Settings ── */
-
 function ColourPicker({ label, settingKey, settings, update, defaultVal }) {
   const val = settings[settingKey] ?? defaultVal;
   const isDefault = val === defaultVal;
@@ -978,7 +954,6 @@ function CustomiseSettings() {
 
   const fmtSize = (bytes) => bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)}MB` : `${Math.round(bytes / 1024)}KB`;
 
-  // Compress image via canvas — maxDim limits resolution, quality controls JPEG compression
   const compressImage = (file, maxDim, quality) => new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -1037,8 +1012,6 @@ function CustomiseSettings() {
           <button type="button" className="text-t3 hover:text-t text-[16px] leading-none" onClick={() => setUploadError('')}>&times;</button>
         </div>
       )}
-
-      {/* ── General ── */}
       <SectionHeader>General</SectionHeader>
 
       <div className="mb-[14px]">
@@ -1097,8 +1070,6 @@ function CustomiseSettings() {
           <span className="text-[12px] font-mono text-t2 w-[36px] text-right">{settings.cardRadius}px</span>
         </div>
       </div>
-
-      {/* ── Weather Widget ── */}
       <SectionHeader>Weather Widget</SectionHeader>
       <div className="text-[11px] text-[#a1a1aa] mb-[8px]">Shows live weather next to the search bar. Requires a free OpenWeatherMap API key.</div>
 
@@ -1118,8 +1089,6 @@ function CustomiseSettings() {
           ))}
         </div>
       </div>
-
-      {/* ── Surface & Background Colours ── */}
       <SectionHeader>Surface Colours</SectionHeader>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">
         <ColourPicker label="Background" settingKey="bgColour" settings={settings} update={update} defaultVal={DEFAULTS.bgColour} />
@@ -1127,16 +1096,12 @@ function CustomiseSettings() {
         <ColourPicker label="Card Inner" settingKey="cardBg2" settings={settings} update={update} defaultVal={DEFAULTS.cardBg2} />
         <ColourPicker label="Card Hover" settingKey="cardBg3" settings={settings} update={update} defaultVal={DEFAULTS.cardBg3} />
       </div>
-
-      {/* ── Text Colours ── */}
       <SectionHeader>Text Colours</SectionHeader>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">
         <ColourPicker label="Primary" settingKey="textPrimary" settings={settings} update={update} defaultVal={DEFAULTS.textPrimary} />
         <ColourPicker label="Secondary" settingKey="textSecondary" settings={settings} update={update} defaultVal={DEFAULTS.textSecondary} />
         <ColourPicker label="Tertiary" settingKey="textTertiary" settings={settings} update={update} defaultVal={DEFAULTS.textTertiary} />
       </div>
-
-      {/* ── Category Accent Colours ── */}
       <SectionHeader>Category Accent Colours</SectionHeader>
       <div className="text-[11px] text-[#a1a1aa] mb-[8px]">Accent colour shown on cards and progress bars per category</div>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">
@@ -1149,16 +1114,12 @@ function CustomiseSettings() {
         <ColourPicker label="Automation" settingKey="accentAutomation" settings={settings} update={update} defaultVal={DEFAULTS.accentAutomation} />
         <ColourPicker label="Misc" settingKey="accentMisc" settings={settings} update={update} defaultVal={DEFAULTS.accentMisc} />
       </div>
-
-      {/* ── Status Colours ── */}
       <SectionHeader>Status Indicator Colours</SectionHeader>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">
         <ColourPicker label="Online" settingKey="statusOnline" settings={settings} update={update} defaultVal={DEFAULTS.statusOnline} />
         <ColourPicker label="Warning" settingKey="statusWarning" settings={settings} update={update} defaultVal={DEFAULTS.statusWarning} />
         <ColourPicker label="Offline" settingKey="statusOffline" settings={settings} update={update} defaultVal={DEFAULTS.statusOffline} />
       </div>
-
-      {/* ── Graph / Chart Colours ── */}
       <SectionHeader>Graph & Chart Colours</SectionHeader>
       <div className="text-[11px] text-[#a1a1aa] mb-[8px]">Colours for 24h history charts and card sparklines</div>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">
@@ -1172,13 +1133,9 @@ function CustomiseSettings() {
         <ColourPicker label="Sparkline RAM" settingKey="sparkRam" settings={settings} update={update} defaultVal={DEFAULTS.sparkRam} />
         <ColourPicker label="Generic" settingKey="graphGeneric" settings={settings} update={update} defaultVal={DEFAULTS.graphGeneric} />
       </div>
-
-      {/* ── Dashboard Sections ── */}
       <SectionHeader>Dashboard Sections</SectionHeader>
       <div className="text-[11px] text-[#a1a1aa] mb-[10px]">Create, reorder, and configure dashboard sections. Drag to reorder.</div>
       <SectionManager settings={settings} update={update} columnOptions={columnOptions} />
-
-      {/* ── Reset All ── */}
       <div className="mt-[24px] pt-[16px] border-t border-bd">
         <button type="button" className={btnDanger} onClick={() => {
           if (confirm('Reset all customisation to defaults?')) resetAllCustomisation();
@@ -1190,8 +1147,6 @@ function CustomiseSettings() {
     </div>
   );
 }
-
-/* ── Section Manager with Drag-to-Reorder ── */
 function SectionManager({ settings, update, columnOptions }) {
   const sections = getSections(settings);
   const [editIdx, setEditIdx] = useState(null);
@@ -1300,8 +1255,6 @@ function SectionManager({ settings, update, columnOptions }) {
     </div>
   );
 }
-
-/* ── Section Editor (inline) ── */
 function SectionEditor({ section, onChange, onClose, allCategories }) {
 
   const toggleCategory = (cat) => {

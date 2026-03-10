@@ -12,6 +12,7 @@ import NginxProxyCard from './card-bodies/NginxProxyCard';
 import PortainerCard from './card-bodies/PortainerCard';
 import GrafanaCard from './card-bodies/GrafanaCard';
 import GenericCard from './card-bodies/GenericCard';
+import AppIcon from '../ui/AppIcon';
 import SonarrCard from './card-bodies/SonarrCard';
 import RadarrCard from './card-bodies/RadarrCard';
 import BazarrCard from './card-bodies/BazarrCard';
@@ -25,6 +26,7 @@ import NextcloudCard from './card-bodies/NextcloudCard';
 import SearxngCard from './card-bodies/SearxngCard';
 import OllamaCard from './card-bodies/OllamaCard';
 import OpenWebuiCard from './card-bodies/OpenWebuiCard';
+import FreshrssCard from './card-bodies/FreshrssCard';
 import LinkdingCard from './card-bodies/LinkdingCard';
 import NotifiarrCard from './card-bodies/NotifiarrCard';
 import SpeedtestTrackerCard from './card-bodies/SpeedtestTrackerCard';
@@ -34,6 +36,7 @@ import RedisCard from './card-bodies/RedisCard';
 import PhpmyadminCard from './card-bodies/PhpmyadminCard';
 import LinuxCard from './card-bodies/LinuxCard';
 import SeerrCard from './card-bodies/SeerrCard';
+import UnifiCard from './card-bodies/UnifiCard';
 
 const cardBodies = {
   proxmox: ProxmoxCard,
@@ -60,6 +63,7 @@ const cardBodies = {
   searxng: SearxngCard,
   ollama: OllamaCard,
   open_webui: OpenWebuiCard,
+  freshrss: FreshrssCard,
   linkding: LinkdingCard,
   notifiarr: NotifiarrCard,
   speedtest_tracker: SpeedtestTrackerCard,
@@ -69,6 +73,7 @@ const cardBodies = {
   phpmyadmin: PhpmyadminCard,
   linux: LinuxCard,
   seerr: SeerrCard,
+  unifi: UnifiCard,
   generic: GenericCard,
 };
 
@@ -96,12 +101,9 @@ const AppCard = React.memo(function AppCard({ app, onClick, index = 0 }) {
       data-category={category}
       data-size={size}
     >
-      {/* Header */}
       <div className="flex items-start justify-between mb-[16px]">
         <div className="flex items-center gap-[10px]">
-          <div className="w-[34px] h-[34px] rounded-[9px] border border-bd bg-s2 flex items-center justify-center text-[16px] shrink-0">
-            {icon}
-          </div>
+          <AppIcon type={type} icon={icon} size={34} />
           <div className="min-w-0">
             <div className="text-[14px] font-semibold tracking-[-0.3px] leading-[1.2] truncate">{name}</div>
             <div className="text-[10px] text-t3 uppercase tracking-[0.1em] font-medium mt-[2px]">{category}</div>
@@ -110,7 +112,6 @@ const AppCard = React.memo(function AppCard({ app, onClick, index = 0 }) {
         <StatusPill status={status} />
       </div>
 
-      {/* Body */}
       {data?.error ? (
         <div className="text-center py-[16px] text-t3 text-[13px]">
           Host unreachable
@@ -124,7 +125,6 @@ const AppCard = React.memo(function AppCard({ app, onClick, index = 0 }) {
         </div>
       )}
 
-      {/* Open URL button — shown for any app with open_url */}
       {app.open_url && !data?.error && data && (
         <button
           className="open-url-btn"

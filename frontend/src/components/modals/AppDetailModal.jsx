@@ -2,17 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getAppHistory, fetchCalendar } from '../../api/stats';
+import { triggerAction } from '../../api/apps';
 import StatusPill from '../ui/StatusPill';
 import StatBox, { StatRow } from '../ui/StatBox';
 import ProgressBar from '../ui/ProgressBar';
 import { ItemList, ItemRow } from '../ui/ItemList';
 import StreamRow from '../ui/StreamRow';
+import AppIcon from '../ui/AppIcon';
 import CalendarGrid from '../ui/CalendarGrid';
 import { fmt, fmtPct, fmtGb, fmtMs, fmtSpeed } from '../../utils/fmt';
 import { useCustomise, getGraphColor } from '../../hooks/useCustomise';
-
-/* ── Calendar tab wrappers ── */
-
 function SonarrCalendarTab({ appId }) {
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,9 +47,6 @@ function RadarrCalendarTab({ appId }) {
 
   return <CalendarGrid episodes={episodes} type="radarr" />;
 }
-
-/* ── Per-type detail renderers ── */
-
 function JellyfinDetail({ data }) {
   const [tab, setTab] = useState('overview');
 
@@ -577,12 +573,47 @@ function UnraidDetail({ data }) {
 }
 
 function VaultwardenDetail({ data }) {
+  const userList = data.user_list || [];
+
   return (
-    <StatRow>
-      <StatBox label="Status" value={data.status || 'unknown'} small />
-      {data.response_time != null && <StatBox label="Response" value={`${data.response_time}ms`} small />}
-      {data.version && <StatBox label="Version" value={data.version} small truncate />}
-    </StatRow>
+    <>
+      <StatRow>
+        <StatBox label="Status" value={data.status || 'unknown'} small />
+        {data.response_time != null && <StatBox label="Response" value={`${data.response_time}ms`} small />}
+        {data.users != null && <StatBox label="Users" value={data.users} accent />}
+        {data.items != null && <StatBox label="Vault Items" value={data.items} />}
+      </StatRow>
+      {data.users != null && (
+        <>
+          <StatRow>
+            <StatBox label="Organizations" value={data.organizations || 0} />
+            <StatBox label="2FA Enabled" value={`${data.twofa_users || 0}/${data.users || 0}`} />
+            <StatBox label="2FA Coverage" value={`${data.twofa_pct || 0}%`} />
+          </StatRow>
+          {userList.length > 0 && (
+            <>
+              <div className="section-label">Users</div>
+              <ItemList>
+                {userList.map((u, i) => (
+                  <ItemRow key={i}
+                    name={u.name || u.email}
+                    sub={u.email}
+                    tag={u.twofa ? '2FA' : null}
+                    dot={u.twofa ? 'green' : 'amber'}
+                    value={`${u.items} items`} />
+                ))}
+              </ItemList>
+            </>
+          )}
+        </>
+      )}
+      {data.admin_error && (
+        <div className="text-[12px] text-red mt-[8px]">{data.admin_error}</div>
+      )}
+      {!data.users && !data.admin_error && (
+        <div className="text-[12px] text-t3 mt-[8px]">Add admin token in settings for detailed stats (users, items, 2FA, etc.)</div>
+      )}
+    </>
   );
 }
 
@@ -1426,8 +1457,6 @@ function RedisDetail({ data }) {
     </>
   );
 }
-
-/* ── Chart key labels + colours ── */
 const chartKeyLabels = {
   cpu_usage: 'CPU %', ram_usage: 'RAM %', cpu_temp: 'CPU Temp',
   gpu_usage: 'GPU %', gpu_temp: 'GPU Temp',
@@ -1585,8 +1614,536 @@ function LinuxDetail({ data }) {
     </>
   );
 }
+function FreshrssDetail({ data, appId }) {
+  const [tab, setTab] = useState('overview');
+  const [articleList, setArticleList] = useState([]);
+  const [selectedArticle, setSelectedArticle] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [continuation, setContinuation] = useState(null);
+  const [currentStream, setCurrentStream] = useState(null);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(true);
+  const [feedsExpanded, setFeedsExpanded] = useState({});
+  const [starredArticles, setStarredArticles] = useState([]);
+  const [starredContinuation, setStarredContinuation] = useState(null);
+  const [starredLoading, setStarredLoading] = useState(false);
+  const [selectedStarred, setSelectedStarred] = useState(null);
 
-/* ── Type → renderer map ── */
+  const fmtAgo = (ts) => {
+    if (!ts) return '';
+    const d = typeof ts === 'number' ? (ts > 1e12 ? new Date(ts) : new Date(ts * 1000)) : new Date(ts);
+    const diff = Date.now() - d.getTime();
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  };
+
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'feeds', label: 'Feeds' },
+    { key: 'reader', label: 'Reader' },
+    { key: 'starred', label: '\u2605 Starred' },
+  ];
+
+  const fetchArticles = useCallback(async (streamId, append = false, unreadOnly = showUnreadOnly) => {
+    setLoading(true);
+    try {
+      const result = await triggerAction(appId, {
+        action: 'get_articles',
+        streamId: streamId || undefined,
+        count: 20,
+        continuation: append ? continuation : undefined,
+        exclude: unreadOnly ? 'user/-/state/com.google/read' : undefined,
+      });
+      if (result?.articles) {
+        setArticleList(prev => append ? [...prev, ...result.articles] : result.articles);
+        setContinuation(result.continuation || null);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [appId, continuation, showUnreadOnly]);
+
+  const fetchStarred = useCallback(async (append = false) => {
+    setStarredLoading(true);
+    try {
+      const result = await triggerAction(appId, {
+        action: 'get_articles',
+        streamId: 'user/-/state/com.google/starred',
+        count: 20,
+        continuation: append ? starredContinuation : undefined,
+      });
+      if (result?.articles) {
+        setStarredArticles(prev => append ? [...prev, ...result.articles] : result.articles);
+        setStarredContinuation(result.continuation || null);
+      }
+    } catch { /* ignore */ }
+    setStarredLoading(false);
+  }, [appId, starredContinuation]);
+
+  const markRead = async (itemId) => {
+    try {
+      await triggerAction(appId, { action: 'mark_read', itemId });
+      setArticleList(prev => prev.map(a => a.id === itemId ? { ...a, unread: false } : a));
+    } catch { /* ignore */ }
+  };
+
+  const toggleStar = async (itemId, currentlyStarred) => {
+    try {
+      await triggerAction(appId, { action: 'toggle_star', itemId, starred: !currentlyStarred });
+      const update = a => a.id === itemId ? { ...a, starred: !currentlyStarred } : a;
+      setArticleList(prev => prev.map(update));
+      setStarredArticles(prev => prev.map(update));
+      if (selectedArticle?.id === itemId) setSelectedArticle(prev => ({ ...prev, starred: !currentlyStarred }));
+      if (selectedStarred?.id === itemId) setSelectedStarred(prev => ({ ...prev, starred: !currentlyStarred }));
+    } catch { /* ignore */ }
+  };
+
+  const markUnread = async (itemId) => {
+    try {
+      await triggerAction(appId, { action: 'mark_unread', itemId });
+      setArticleList(prev => prev.map(a => a.id === itemId ? { ...a, unread: true } : a));
+    } catch { /* ignore */ }
+  };
+
+  const [markingFeed, setMarkingFeed] = useState(null);
+
+  const markFeedRead = async (feedId) => {
+    setMarkingFeed(feedId);
+    setArticleList(prev => prev.map(a => a.feed_id === feedId ? { ...a, unread: false } : a));
+    try {
+      await triggerAction(appId, { action: 'mark_all_read', streamId: feedId });
+    } catch { /* ignore */ }
+    setMarkingFeed(null);
+  };
+
+  const openArticle = (article, fromStarred = false) => {
+    if (fromStarred) {
+      setSelectedStarred(article);
+    } else {
+      setSelectedArticle(article);
+      if (article.unread) markRead(article.id);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'reader' && articleList.length === 0 && !loading) {
+      fetchArticles(currentStream);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab === 'starred' && starredArticles.length === 0 && !starredLoading) {
+      fetchStarred();
+    }
+  }, [tab]);
+
+  const handleFeedClick = (feedId) => {
+    setCurrentStream(feedId);
+    setArticleList([]);
+    setContinuation(null);
+    setSelectedArticle(null);
+    setTab('reader');
+    setTimeout(() => fetchArticles(feedId, false, showUnreadOnly), 0);
+  };
+
+  const handleFilterToggle = (unread) => {
+    setShowUnreadOnly(unread);
+    setArticleList([]);
+    setContinuation(null);
+    setSelectedArticle(null);
+    fetchArticles(currentStream, false, unread);
+  };
+
+  const articleContentStyles = `
+    .freshrss-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+    .freshrss-content a { color: var(--accent, #34d399); text-decoration: underline; text-decoration-color: rgba(52,211,153,0.3); }
+    .freshrss-content a:hover { text-decoration-color: var(--accent, #34d399); }
+    .freshrss-content h1, .freshrss-content h2, .freshrss-content h3, .freshrss-content h4 { color: var(--t); font-weight: 600; margin: 16px 0 8px; line-height: 1.3; }
+    .freshrss-content h1 { font-size: 20px; } .freshrss-content h2 { font-size: 17px; } .freshrss-content h3 { font-size: 15px; }
+    .freshrss-content p { margin: 8px 0; line-height: 1.65; color: var(--t2); }
+    .freshrss-content ul, .freshrss-content ol { padding-left: 20px; margin: 8px 0; color: var(--t2); }
+    .freshrss-content li { margin: 4px 0; line-height: 1.6; }
+    .freshrss-content blockquote { border-left: 3px solid var(--bd2); background: var(--s2); padding: 10px 14px; margin: 10px 0; border-radius: 4px; color: var(--t2); }
+    .freshrss-content code { font-family: 'JetBrains Mono', monospace; background: var(--s3); padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
+    .freshrss-content pre { background: var(--s3); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+    .freshrss-content pre code { background: none; padding: 0; }
+    .freshrss-content table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    .freshrss-content td, .freshrss-content th { border: 1px solid var(--bd); padding: 6px 10px; text-align: left; }
+    .freshrss-content { overflow-wrap: break-word; word-break: break-word; font-size: 14px; }
+    .freshrss-content figure { margin: 10px 0; }
+    .freshrss-content figcaption { font-size: 12px; color: var(--t3); text-align: center; margin-top: 4px; }
+    .freshrss-content video, .freshrss-content iframe { max-width: 100%; border-radius: 8px; }
+  `;
+  const renderArticleView = (article, onBack, list, setSelected) => {
+    const idx = list.findIndex(a => a.id === article.id);
+    const prev = idx > 0 ? list[idx - 1] : null;
+    const next = idx < list.length - 1 ? list[idx + 1] : null;
+
+    return (
+      <div className="animate-fadeUp">
+        <style>{articleContentStyles}</style>
+        {/* Header bar */}
+        <div className="flex items-center gap-[8px] mb-[14px]">
+          <button onClick={onBack}
+            className="w-[28px] h-[28px] bg-s2 border border-bd rounded-[var(--radius-inner)] flex items-center justify-center text-t3 hover:text-t hover:bg-s3 transition-colors text-[13px] shrink-0">
+            &#x2190;
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold text-t leading-[1.3] line-clamp-2">{article.title}</div>
+            <div className="text-[11px] text-t3 mt-[2px]">{article.feed} &middot; {fmtAgo(article.published)}</div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-[6px] mb-[16px]">
+          <button onClick={() => toggleStar(article.id, article.starred)}
+            className={`px-[10px] py-[5px] rounded-[var(--radius-tag)] text-[11px] font-medium border transition-colors
+              ${article.starred ? 'bg-[rgba(234,179,8,0.15)] border-[rgba(234,179,8,0.3)] text-[#eab308]' : 'bg-s2 border-bd text-t3 hover:text-t hover:border-bd2'}`}>
+            {article.starred ? '\u2605 Starred' : '\u2606 Star'}
+          </button>
+          <button onClick={() => { markUnread(article.id); onBack(); }}
+            className="px-[10px] py-[5px] rounded-[var(--radius-tag)] text-[11px] font-medium bg-s2 border border-bd text-t3 hover:text-t hover:border-bd2 transition-colors">
+            Mark Unread
+          </button>
+          {article.url && (
+            <a href={article.url} target="_blank" rel="noopener noreferrer"
+              className="px-[10px] py-[5px] rounded-[var(--radius-tag)] text-[11px] font-medium bg-s2 border border-bd text-t3 hover:text-t hover:border-bd2 transition-colors no-underline">
+              Open Original &#x2197;
+            </a>
+          )}
+        </div>
+
+        {/* Article content */}
+        <div className="freshrss-content bg-s2 border border-bd rounded-[var(--radius-inner)] p-[16px] mb-[16px]"
+          dangerouslySetInnerHTML={{ __html: article.content || article.summary || '<p class="text-t3">No content available</p>' }} />
+
+        {/* Prev/Next nav */}
+        <div className="flex gap-[8px]">
+          {prev && (
+            <button onClick={() => { setSelected(prev); if (prev.unread) markRead(prev.id); }}
+              className="flex-1 text-left px-[12px] py-[10px] bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2 hover:bg-s3 transition-colors">
+              <div className="text-[10px] text-t3 uppercase tracking-[0.07em] mb-[3px]">&larr; Previous</div>
+              <div className="text-[12px] text-t2 truncate">{prev.title}</div>
+            </button>
+          )}
+          {next && (
+            <button onClick={() => { setSelected(next); if (next.unread) markRead(next.id); }}
+              className="flex-1 text-right px-[12px] py-[10px] bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2 hover:bg-s3 transition-colors">
+              <div className="text-[10px] text-t3 uppercase tracking-[0.07em] mb-[3px]">Next &rarr;</div>
+              <div className="text-[12px] text-t2 truncate">{next.title}</div>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const renderArticleList = (articles, onSelect, isLoading, onLoadMore, cont) => (
+    <div className="space-y-[2px]">
+      {articles.map((a) => (
+        <button key={a.id} onClick={() => onSelect(a)}
+          className="w-full text-left px-[12px] py-[10px] bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2 hover:bg-s3 transition-colors block">
+          <div className="flex items-start gap-[8px]">
+            {a.unread && <div className="w-[7px] h-[7px] rounded-full mt-[5px] shrink-0" style={{ background: 'var(--accent, #34d399)' }} />}
+            <div className="min-w-0 flex-1">
+              <div className={`text-[13px] leading-[1.35] line-clamp-2 ${a.unread ? 'font-semibold text-t' : 'text-t2'}`}>{a.title}</div>
+              <div className="text-[10px] text-t3 mt-[3px]">{a.feed} &middot; {fmtAgo(a.published)}</div>
+              {a.summary && <div className="text-[11px] text-t3 mt-[4px] line-clamp-2 leading-[1.5]">{a.summary.replace(/<[^>]*>/g, '').slice(0, 100)}</div>}
+            </div>
+          </div>
+        </button>
+      ))}
+      {isLoading && <div className="flex justify-center py-[16px]"><div className="w-[16px] h-[16px] border-2 border-t3 border-t-t rounded-full animate-spin" /></div>}
+      {!isLoading && cont && (
+        <button onClick={onLoadMore}
+          className="w-full py-[10px] text-[12px] text-t3 hover:text-t2 transition-colors font-medium text-center bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2">
+          Load more articles...
+        </button>
+      )}
+      {!isLoading && articles.length === 0 && (
+        <div className="text-[12px] text-t3 py-[24px] text-center">No articles found</div>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => { setTab(t.key); setSelectedArticle(null); setSelectedStarred(null); }}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'overview' && (
+        <>
+          <StatRow>
+            <StatBox label="Unread" value={data.unread_count ?? 0} accent />
+            <StatBox label="Feeds" value={data.total_feeds ?? 0} />
+            <StatBox label="Categories" value={data.categories_count ?? 0} />
+            <StatBox label="Starred" value={data.starred_count ?? 0} />
+          </StatRow>
+          {data.recent_articles?.length > 0 && (
+            <>
+              <div className="section-label">Recent Articles</div>
+              <ItemList>
+                {data.recent_articles.map((a, i) => (
+                  <ItemRow key={a.id ?? i} name={a.title} sub={a.feed} value={fmtAgo(a.published)} />
+                ))}
+              </ItemList>
+            </>
+          )}
+        </>
+      )}
+      {tab === 'feeds' && (
+        <>
+          {data.categories?.length > 0 ? data.categories.map((cat) => {
+            const isExpanded = feedsExpanded[cat.label] !== false;
+            const catFeeds = (data.feeds || []).filter(f => f.category === cat.label);
+            return (
+              <div key={cat.id || cat.label} className="mb-[8px]">
+                <button onClick={() => setFeedsExpanded(prev => ({ ...prev, [cat.label]: !isExpanded }))}
+                  className="w-full flex items-center justify-between px-[10px] py-[8px] bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2 transition-colors">
+                  <span className="text-[12px] font-semibold text-t">{cat.label} <span className="text-t3 font-normal">({catFeeds.length})</span></span>
+                  <span className="text-[11px] text-t3 transition-transform" style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}>{'\u25BE'}</span>
+                </button>
+                {isExpanded && catFeeds.length > 0 && (
+                  <div className="mt-[4px] space-y-[2px] pl-[8px]">
+                    {catFeeds.map(f => (
+                      <div key={f.id} className="flex items-center gap-[6px] group">
+                        <button onClick={() => handleFeedClick(f.id)}
+                          className="flex-1 flex items-center justify-between min-w-0 px-[10px] py-[7px] bg-s2 border border-bd rounded-[var(--radius-inner)] hover:border-bd2 hover:bg-s3 transition-colors text-left">
+                          <span className="text-[12px] text-t2 truncate">{f.title}</span>
+                          {(f.unread > 0) && (
+                            <span className="ml-[6px] shrink-0 px-[6px] py-[1px] rounded-full text-[10px] font-semibold"
+                              style={{ background: 'var(--accent, #34d399)', color: 'var(--s1)' }}>
+                              {f.unread}
+                            </span>
+                          )}
+                        </button>
+                        <button onClick={() => markFeedRead(f.id)}
+                          title="Mark all read"
+                          disabled={markingFeed === f.id}
+                          className={`shrink-0 w-[26px] h-[26px] bg-s2 border border-bd rounded-[var(--radius-inner)] flex items-center justify-center text-t3 hover:text-t hover:border-bd2 transition-all text-[11px]
+                            ${markingFeed === f.id ? 'opacity-50' : 'opacity-0 group-hover:opacity-100'}`}>
+                          {markingFeed === f.id ? '...' : '\u2713'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }) : (
+            <div className="text-[12px] text-t3 py-[16px] text-center">No feed data available. Open the Reader tab to fetch articles.</div>
+          )}
+        </>
+      )}
+      {tab === 'reader' && (
+        <>
+          {selectedArticle ? (
+            renderArticleView(selectedArticle, () => setSelectedArticle(null), articleList, setSelectedArticle)
+          ) : (
+            <>
+              {/* Filter pills */}
+              <div className="flex items-center gap-[6px] mb-[12px]">
+                <button onClick={() => handleFilterToggle(false)}
+                  className={`px-[10px] py-[4px] rounded-full text-[11px] font-medium border transition-colors
+                    ${!showUnreadOnly ? 'bg-s2 text-t border-bd2' : 'text-t3 border-transparent hover:text-t2'}`}>
+                  All
+                </button>
+                <button onClick={() => handleFilterToggle(true)}
+                  className={`px-[10px] py-[4px] rounded-full text-[11px] font-medium border transition-colors
+                    ${showUnreadOnly ? 'bg-s2 text-t border-bd2' : 'text-t3 border-transparent hover:text-t2'}`}>
+                  Unread
+                </button>
+                {currentStream && (
+                  <button onClick={() => { setCurrentStream(null); setArticleList([]); setContinuation(null); fetchArticles(null, false, showUnreadOnly); }}
+                    className="ml-auto px-[8px] py-[4px] rounded-full text-[10px] font-medium text-t3 border border-bd hover:text-t2 hover:border-bd2 transition-colors">
+                    Clear Filter &times;
+                  </button>
+                )}
+              </div>
+              {renderArticleList(articleList, (a) => openArticle(a, false), loading, () => fetchArticles(currentStream, true), continuation)}
+            </>
+          )}
+        </>
+      )}
+      {tab === 'starred' && (
+        <>
+          {selectedStarred ? (
+            renderArticleView(selectedStarred, () => setSelectedStarred(null), starredArticles, setSelectedStarred)
+          ) : (
+            renderArticleList(starredArticles, (a) => openArticle(a, true), starredLoading, () => fetchStarred(true), starredContinuation)
+          )}
+        </>
+      )}
+    </>
+  );
+}
+function UnifiDetail({ data }) {
+  const [tab, setTab] = useState('overview');
+
+  const devices = data.devices || [];
+  const topClients = data.top_clients || [];
+
+  const gateways = devices.filter(d => d.type === 'ugw' || d.type === 'udm');
+  const switches = devices.filter(d => d.type === 'usw');
+  const aps = devices.filter(d => d.type === 'uap');
+
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    ...(devices.length > 0 ? [{ key: 'devices', label: `Devices (${devices.length})` }] : []),
+    ...(topClients.length > 0 ? [{ key: 'clients', label: `Clients (${data.total_clients || 0})` }] : []),
+  ];
+
+  function fmtBytes(bytes) {
+    if (!bytes) return '0 B';
+    if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
+    if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+    if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+    return `${(bytes / 1e3).toFixed(0)} KB`;
+  }
+
+  return (
+    <>
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <>
+          {/* WAN */}
+          <div className="section-label">WAN</div>
+          <StatRow>
+            <StatBox label="WAN IP" value={data.wan_ip} truncate />
+            <StatBox label="ISP" value={data.isp} truncate />
+            <StatBox label="Availability" value={`${(data.wan_availability ?? 100).toFixed(1)}%`} />
+          </StatRow>
+          <StatRow>
+            <StatBox label="↓ Download" value={`${(data.wan_down || 0).toFixed(0)} Mbps`} accent />
+            <StatBox label="↑ Upload" value={`${(data.wan_up || 0).toFixed(0)} Mbps`} />
+            <StatBox label="Ping" value={`${data.wan_ping || 0} ms`} />
+            <StatBox label="Latency" value={`${data.wan_latency || 0} ms`} muted />
+          </StatRow>
+
+          {/* Gateway */}
+          <div className="section-label">Gateway</div>
+          <StatRow>
+            <StatBox label="Name" value={data.gw_name} truncate />
+            <StatBox label="CPU" value={`${(data.gw_cpu || 0).toFixed(1)}%`} />
+            <StatBox label="Memory" value={`${(data.gw_mem || 0).toFixed(1)}%`} />
+            <StatBox label="Uptime" value={data.gw_uptime_fmt} truncate muted />
+          </StatRow>
+
+          {/* Network */}
+          <div className="section-label">Network</div>
+          <StatRow>
+            <StatBox label="Total Clients" value={data.total_clients || 0} accent />
+            <StatBox label="WiFi" value={data.wireless_clients || 0} />
+            <StatBox label="Wired" value={data.wired_clients || 0} />
+            <StatBox label="Guest" value={data.guest_clients || 0} muted />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Total Devices" value={data.total_devices || 0} />
+            <StatBox label="Access Points" value={data.aps || 0} />
+            <StatBox label="Switches" value={data.switches || 0} />
+            <StatBox label="Gateways" value={data.gateways || 0} />
+          </StatRow>
+
+          {/* Real-time throughput */}
+          <div className="section-label">Live Throughput</div>
+          <StatRow>
+            <StatBox label="WAN ↓" value={`${(data.wan_rx || 0).toFixed(1)} Mbps`} />
+            <StatBox label="WAN ↑" value={`${(data.wan_tx || 0).toFixed(1)} Mbps`} />
+            <StatBox label="WiFi ↓" value={`${(data.wlan_rx || 0).toFixed(1)} Mbps`} muted />
+            <StatBox label="WiFi ↑" value={`${(data.wlan_tx || 0).toFixed(1)} Mbps`} muted />
+          </StatRow>
+
+          {data.gw_version && (
+            <div className="text-[11px] text-t3 mt-[8px]">Firmware: {data.gw_version}</div>
+          )}
+        </>
+      )}
+
+      {tab === 'devices' && (
+        <>
+          {gateways.length > 0 && (
+            <>
+              <div className="section-label">Gateways</div>
+              <ItemList>
+                {gateways.map(d => (
+                  <ItemRow key={d.mac} name={d.name}
+                    sub={`${d.model} · ${d.ip} · Up ${d.uptime_fmt}`}
+                    tag={d.version}
+                    dot={d.state === 'online' ? 'green' : 'red'}
+                    value={`${d.clients} clients`} />
+                ))}
+              </ItemList>
+            </>
+          )}
+          {switches.length > 0 && (
+            <>
+              <div className="section-label">Switches</div>
+              <ItemList>
+                {switches.map(d => (
+                  <ItemRow key={d.mac} name={d.name}
+                    sub={`${d.model} · ${d.ip} · Up ${d.uptime_fmt}`}
+                    tag={d.version}
+                    dot={d.state === 'online' ? 'green' : 'red'}
+                    value={`${d.clients} clients`} />
+                ))}
+              </ItemList>
+            </>
+          )}
+          {aps.length > 0 && (
+            <>
+              <div className="section-label">Access Points</div>
+              <ItemList>
+                {aps.map(d => (
+                  <ItemRow key={d.mac} name={d.name}
+                    sub={`${d.model} · ${d.ip} · Up ${d.uptime_fmt}`}
+                    tag={d.version}
+                    dot={d.state === 'online' ? 'green' : 'red'}
+                    value={`${d.clients} clients`} />
+                ))}
+              </ItemList>
+            </>
+          )}
+        </>
+      )}
+
+      {tab === 'clients' && (
+        <>
+          <div className="flex gap-[8px] mb-[10px] text-[11px] text-t3">
+            <span>WiFi: {data.wireless_clients || 0}</span>
+            <span>·</span>
+            <span>Wired: {data.wired_clients || 0}</span>
+            <span>·</span>
+            <span>Guest: {data.guest_clients || 0}</span>
+          </div>
+          <ItemList>
+            {topClients.map((c, i) => (
+              <ItemRow key={c.mac || i}
+                name={c.name}
+                sub={`${c.ip}${c.essid ? ` · ${c.essid}` : ''}${c.signal ? ` · ${c.signal} dBm` : ''} · Up ${c.uptime_fmt}`}
+                tag={c.is_wired ? 'LAN' : 'WiFi'}
+                dot={c.is_wired ? 'blue' : 'green'}
+                value={fmtBytes(c.tx_bytes + c.rx_bytes)} />
+            ))}
+          </ItemList>
+        </>
+      )}
+    </>
+  );
+}
 const detailRenderers = {
   jellyfin: JellyfinDetail,
   plex: PlexDetail,
@@ -1617,14 +2174,14 @@ const detailRenderers = {
   redis_server: RedisDetail,
   searxng: GenericDetail,
   open_webui: OpenWebuiDetail,
+  freshrss: FreshrssDetail,
   notifiarr: NotifiarrDetail,
   iperf3: Iperf3Detail,
   seerr: SeerrDetail,
+  unifi: UnifiDetail,
   phpmyadmin: GenericDetail,
   generic: GenericDetail,
 };
-
-/* ── Slide-from-right Detail Panel ── */
 export default function AppDetailModal({ app, onClose }) {
   const [activeKey, setActiveKey] = useState(null);
   const [closing, setClosing] = useState(false);
@@ -1635,7 +2192,6 @@ export default function AppDetailModal({ app, onClose }) {
     setTimeout(onClose, 250);
   }, [onClose]);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', handler);
@@ -1692,9 +2248,7 @@ export default function AppDetailModal({ app, onClose }) {
           {/* Header */}
           <div className="flex items-start justify-between mb-[20px]">
             <div className="flex items-center gap-[10px] min-w-0">
-              <div className="w-[40px] h-[40px] rounded-[10px] border border-bd bg-s2 flex items-center justify-center text-[20px] shrink-0">
-                {app.icon}
-              </div>
+              <AppIcon type={app.type} icon={app.icon} size={40} className="rounded-[10px]" />
               <div className="min-w-0">
                 <div className="text-[17px] font-semibold tracking-[-0.3px]">{app.name}</div>
                 <div className="flex items-center gap-[6px] mt-[2px]">

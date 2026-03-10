@@ -17,7 +17,7 @@ Everything updates in real time through Server Sent Events (SSE). No need to ref
 
 The dashboard polls all your configured services on intervals you control (as fast as every 3 seconds for critical services). Stats are pushed to every open browser tab instantly through SSE. CPU usage, RAM, temperatures, container counts, download speeds, stream counts, and more are all live.
 
-**30+ Supported Services**
+**35+ Supported Services**
 
 Here is everything the dashboard can connect to out of the box:
 
@@ -26,13 +26,22 @@ Here is everything the dashboard can connect to out of the box:
 | Servers | Proxmox VE, Unraid, Linux (via SSH) |
 | Media | Jellyfin, Plex, Tautulli, Immich, MeTube |
 | Downloads | SABnzbd, qBittorrent, Sonarr, Radarr, Bazarr, Prowlarr |
-| Network | AdGuard Home, Pi hole, Nginx Proxy Manager, Vaultwarden |
+| Network | AdGuard Home, Pi hole, Nginx Proxy Manager, UniFi Network |
+| Security | Vaultwarden |
 | Monitoring | Uptime Kuma, Grafana, Speedtest Tracker, iPerf3 |
 | Infrastructure | Portainer, MariaDB, Redis, phpMyAdmin |
 | Automation | Notifiarr, Linkding |
-| Other | Nextcloud, SearXNG, Ollama, Open WebUI, Overseerr/Jellyseerr |
+| Other | Nextcloud, SearXNG, Ollama, Open WebUI, FreshRSS, Overseerr/Jellyseerr |
 
 Every service type has its own detailed card showing the most relevant data. Clicking a card opens a detailed modal with tabs, charts, and 24 hour history graphs.
+
+**UniFi Network Integration**
+
+The UniFi connector provides full controller integration with responsive card layouts that adapt from 1 to 5 column widths. Live Recharts graphs show CPU usage, RAM usage, WAN TX/RX throughput, and connected client counts. A scrollable top clients list shows the most active devices on your network.
+
+**Enriched Vaultwarden Support**
+
+Vaultwarden now supports an optional admin token for full statistics: user counts, vault items, organizations, 2FA adoption percentage, and per-user item counts. Without the admin token, it falls back to basic online/offline status monitoring.
 
 **SearXNG Web Search**
 
@@ -340,24 +349,123 @@ The dashboard will start polling the service immediately and the card will appea
 | AdGuard Home | URL + username + password |
 | Pi hole | URL + API key (found in Pi hole settings) |
 | Uptime Kuma | URL + API key or username + password |
-| Grafana | URL + API token |
-| Portainer | URL + username + password or API key |
-| SABnzbd, qBittorrent | URL + API key or username + password |
-| Nginx Proxy Manager | URL + email + password |
+| Grafana | URL + service account token |
+| Portainer | URL + username + password |
+| SABnzbd | URL + API key |
+| qBittorrent | URL + username + password |
+| Nginx Proxy Manager | URL + email + password, or API token if 2FA is enabled |
 | Nextcloud | URL + username + app password |
-| Notifiarr | URL + API key |
+| Notifiarr | URL + API key (optional) |
 | Immich | URL + API key |
 | Overseerr/Jellyseerr | URL + API key |
-| Ollama, Open WebUI | URL only |
-| Vaultwarden | URL + admin token |
-| MariaDB | Host + username + password |
-| Redis | Host + optional password |
-| Speedtest Tracker | URL + API key or none |
+| Ollama | URL only |
+| Open WebUI | URL + email + password |
+| Vaultwarden | URL + admin token (optional, enables full stats) |
+| UniFi Network | URL + local admin username + password |
+| FreshRSS | URL + username + API password (separate from login password, set in Settings → Profile → API password) |
+| MariaDB | Host + port + username + password |
+| Redis | Host + port + optional password |
+| phpMyAdmin | URL only (HTTP ping) |
+| Speedtest Tracker | URL + bearer token (optional) |
 | SearXNG | URL only |
 | Linkding | URL + API token |
 | iPerf3 | Target host + port |
+| MeTube | URL only |
+| Generic | URL only (HTTP ping) |
 
 All credentials are encrypted with AES 256 before being stored in the database. They are only decrypted in memory when polling the service.
+
+### Service Setup Guides
+
+Below are brief setup instructions for every supported service, organized by category.
+
+### Infrastructure
+
+**Proxmox VE** — Create an API token at Datacenter → Permissions → API Tokens. The format is `user@pam!tokenid=secret-uuid`. Optionally add SSH credentials for GPU stats. The dashboard shows node CPU, RAM, storage, VM/container counts, and per-guest status.
+
+**Unraid** — Generate an API key in Unraid settings. Optionally add SSH credentials for GPU stats. Shows CPU, RAM, array status, disk usage, and Docker container counts.
+
+**Linux (SSH)** — Provide an SSH host, username, and password. You can also use an SSH key (`~/.ssh/id_ed25519` on the dashboard server). Shows CPU, RAM, disk, uptime, temperatures, and running processes.
+
+**Portainer** — Use your Portainer login username and password. Shows environment counts, running/stopped containers, stacks, images, and volumes.
+
+**MariaDB** — Provide the host, port, username, and password for a direct MySQL protocol connection. Shows server version, uptime, connections, queries per second, and database sizes.
+
+**Redis** — Provide the host, port, and optional password for a direct Redis protocol connection. Shows memory usage, connected clients, keys, uptime, and operations per second.
+
+**phpMyAdmin** — Only needs the URL. The dashboard pings it to confirm it is online. No credentials required.
+
+### Media
+
+**Jellyfin** — Generate an API key at Dashboard → API Keys. Shows library counts (movies, series, episodes, songs), active streams, and user activity.
+
+**Plex** — Requires your X-Plex-Token. You can find it by inspecting network requests in your browser while using Plex web. Shows library stats, active streams, and bandwidth.
+
+**Tautulli** — Find the API key at Settings → Web Interface → API Key. Shows stream counts, bandwidth, recent activity, and top users. Requires a working Plex connection in Tautulli.
+
+**Immich** — Generate an API key at Account Settings → API Keys. Shows photo/video counts, storage usage, user counts, and library statistics.
+
+**MeTube** — No credentials needed. Just provide the URL. Shows download queue status and active/completed download counts.
+
+### Downloads
+
+**Sonarr** — Find the API key at Settings → General → API Key. Shows series counts, monitored episodes, queue size, disk space, and missing episodes.
+
+**Radarr** — Find the API key at Settings → General → API Key. Shows movie counts, monitored movies, queue size, disk space, and missing movies.
+
+**Bazarr** — Find the API key at Settings → General → API Key. Shows subtitle download stats, wanted subtitles, and episode/movie subtitle coverage.
+
+**Prowlarr** — Find the API key at Settings → General → API Key. Shows indexer counts, search stats, and indexer health status.
+
+**SABnzbd** — Find the API key at Config → General → API Key. Shows download speed, queue size, remaining data, disk space, and history counts.
+
+**qBittorrent** — Use your qBittorrent Web UI username and password. Shows download/upload speeds, active torrents, queue counts, and total data transferred.
+
+**Overseerr/Jellyseerr** — Find the API key at Settings → General → API Key. Works with both Overseerr and Jellyseerr. Shows request counts, pending approvals, and available/processing status.
+
+### Network
+
+**AdGuard Home** — Use your AdGuard Home admin username and password. Shows total queries, blocked percentage, top blocked domains, and filtering rules count.
+
+**Pi-hole** — Find the API token at Settings → API → Show API Token. Shows total queries, blocked percentage, clients, domains on blocklist, and query types.
+
+**Nginx Proxy Manager** — Use your login email and password. If you have 2FA enabled, use an API token instead. Shows proxy host counts, redirection hosts, streams, and SSL certificate status.
+
+**UniFi Network** — Use a local admin username and password for your UniFi controller. Shows live CPU and RAM graphs, WAN throughput (TX/RX), connected client counts, device status, and a scrollable top clients list. Card layout adapts responsively from 1 to 5 column widths.
+
+### Security
+
+**Vaultwarden** — Optionally provide the admin token (the `ADMIN_TOKEN` value from your Vaultwarden config). With the token, the dashboard shows user counts, vault item totals, organization counts, 2FA adoption percentage, and per-user item breakdowns. Without the token, it shows basic online/offline status.
+
+### Monitoring
+
+**Uptime Kuma** — Generate an API key at Settings → API Keys. Shows monitor counts by status (up, down, pending), average response times, and incident history.
+
+**Grafana** — Create a service account token at Administration → Service Accounts → Add Token. Shows dashboard counts, data source counts, alert rule status, and organization info.
+
+**Speedtest Tracker** — Optionally provide a bearer token found at Settings → API. Shows latest speed test results (download, upload, ping), and historical speed data.
+
+**iPerf3** — Provide the target host IP and port (default 5201). Requires the `iperf3` binary installed on the dashboard server. Runs real network throughput tests between the dashboard server and the target. The remote machine must be running `iperf3 -s`.
+
+### Automation
+
+**Notifiarr** — Provide the API key (optional). Shows notification counts, configured triggers, and integration status.
+
+**Linkding** — Find the API token at Settings → REST API. Shows bookmark counts, tag counts, unread bookmarks, and shared bookmark stats.
+
+### Misc
+
+**Nextcloud** — Create an app password at Settings → Security → App Passwords. Use your Nextcloud username and this app password (not your login password). Shows storage usage, user counts, active users, shares, and app update status.
+
+**SearXNG** — No credentials needed. Just provide the URL. Instead of showing as a card, it appears as a search bar at the top of the dashboard with live autocomplete.
+
+**Ollama** — No credentials needed. Just provide the URL. Shows loaded models, model details, and server status.
+
+**Open WebUI** — Use your Open WebUI login email and password. Shows user counts, chat stats, available models, knowledge bases, prompts, and tools.
+
+**FreshRSS** — Use your FreshRSS username and API password. The API password is separate from your login password and is set at Settings → Profile → API password. Shows feed counts, unread articles, and subscription stats.
+
+**Generic** — No credentials needed. Provide any URL and the dashboard will do an HTTP ping to check if it is online. Useful for services that do not have a dedicated connector.
 
 ### The Open URL Field
 

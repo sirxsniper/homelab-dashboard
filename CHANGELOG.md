@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.0
+
+### New Features
+- **UniFi Network**: Full UniFi controller integration with responsive card layouts. Live graphs for CPU, RAM, WAN throughput using Recharts AreaCharts that adapt to card width (1-5 column layouts). Shows gateway stats, top clients with scrollable list, WAN uplink info, and connected device counts.
+- **FreshRSS**: New connector for FreshRSS RSS reader. Shows feed counts, unread articles, and subscription stats using the Google Reader API.
+- **Vaultwarden Enhanced**: Enriched Vaultwarden connector with admin panel integration. Optionally provide your admin token to see total users, vault items, organizations, 2FA adoption percentage, and per-user item breakdown. Without the token, basic online/offline monitoring still works.
+
+### Improvements
+- **Responsive Card Graphs**: UniFi card uses ResizeObserver to detect actual card width and renders distinct layouts at each column count — from compact single-stat at 5 columns to full graphs-and-clients at 1 column.
+- **App Icons**: New reusable AppIcon component with support for custom uploaded icons and generic fallback icons.
+- **Code Cleanup**: Removed unnecessary comments, decorative dividers, and self-evident annotations across the codebase for cleaner, more maintainable code.
+- Updated service table and documentation with setup guides for all 35+ supported services.
+
 ## v1.1.1
 
 ### Security

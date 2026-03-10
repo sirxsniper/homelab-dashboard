@@ -1,23 +1,37 @@
 import StatBox, { StatRow } from '../../ui/StatBox';
-import AlertBadge from '../../ui/AlertBadge';
+import CardFooter from '../../ui/CardFooter';
 
 export default function VaultwardenCard({ data }) {
+  if (data.users != null) {
+    return (
+      <div>
+        <StatRow>
+          <StatBox label="Users" value={data.users || 0} accent />
+          <StatBox label="Items" value={data.items || 0} />
+          <StatBox label="Orgs" value={data.organizations || 0} />
+          <StatBox label="2FA" value={`${data.twofa_pct || 0}%`} />
+        </StatRow>
+        {data.admin_error && (
+          <div className="text-[11px] text-red px-[2px] mb-[4px]">{data.admin_error}</div>
+        )}
+        <CardFooter
+          left={`${data.twofa_users || 0}/${data.users || 0} users with 2FA`}
+          right={`${data.response_time || 0}ms`}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <StatRow>
-        <StatBox label="Items" value={data.items || 0} />
-        <StatBox label="Users" value={data.users || 0} />
-        <StatBox label="Collections" value={data.collections || 0} />
+        <StatBox label="Status" value={data.status || 'unknown'} />
+        <StatBox label="Response" value={`${data.response_time || 0}ms`} small />
       </StatRow>
-      {data.failed_logins > 0 && (
-        <AlertBadge variant="error" label="Failed logins" value={data.failed_logins} />
+      {data.admin_error && (
+        <div className="text-[11px] text-red px-[2px] mt-[4px]">{data.admin_error}</div>
       )}
-      <div className="flex items-center justify-between py-[6px] px-[10px] bg-s2 rounded-[var(--radius-inner)] text-[12px]">
-        <span className="text-t3">2FA enforcement</span>
-        <span className={`font-mono ${data.twofa_enabled ? 'text-green' : 'text-t3'}`}>
-          {data.twofa_enabled ? 'Enabled' : 'Disabled'}
-        </span>
-      </div>
+      <CardFooter left="Add admin token for full stats" />
     </div>
   );
 }

@@ -36,9 +36,9 @@ volumes:
 
 ## What It Does
 
-Connects to 30+ homelab services and shows live stats on a single page. Everything updates in real time through Server Sent Events.
+Connects to 35+ homelab services and shows live stats on a single page. Everything updates in real time through Server Sent Events.
 
-**Supported services:** Proxmox, Unraid, Linux (SSH), Jellyfin, Plex, Tautulli, Sonarr, Radarr, Bazarr, Prowlarr, SABnzbd, qBittorrent, AdGuard Home, Pi hole, Nginx Proxy Manager, Portainer, Uptime Kuma, Grafana, Immich, Nextcloud, Notifiarr, Vaultwarden, MariaDB, Redis, Speedtest Tracker, iPerf3, SearXNG, Ollama, Open WebUI, Linkding, Overseerr/Jellyseerr, MeTube, phpMyAdmin, and more.
+**Supported services:** Proxmox, Unraid, Linux (SSH), UniFi Network, Jellyfin, Plex, Tautulli, Sonarr, Radarr, Bazarr, Prowlarr, SABnzbd, qBittorrent, AdGuard Home, Pi-hole, Nginx Proxy Manager, Portainer, Uptime Kuma, Grafana, Immich, Nextcloud, Notifiarr, Vaultwarden, FreshRSS, MariaDB, Redis, Speedtest Tracker, iPerf3, SearXNG, Ollama, Open WebUI, Linkding, Overseerr/Jellyseerr, MeTube, phpMyAdmin, and more.
 
 ## Features
 

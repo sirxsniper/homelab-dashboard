@@ -19,17 +19,14 @@ export default function Dashboard() {
   const custom = useCustomise();
   const categories = useMemo(() => ['All', ...getAllCategories(custom)], [custom]);
 
-  // SSE is the primary data source — delivers stats every 3s
   const sseStats = useSSE();
 
-  // Give SSE 400ms to connect before falling back to REST
   const [sseWait, setSseWait] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setSseWait(false), 400);
     return () => clearTimeout(t);
   }, []);
 
-  // React Query is fallback only — initial load + safety net
   const { data: fetchedStats = [], isLoading: fetchLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: getAllStats,
@@ -40,13 +37,11 @@ export default function Dashboard() {
   const stats = sseStats || fetchedStats;
   const isLoading = !sseStats && fetchLoading;
 
-  // Live app for modal — always reads from latest stats so SSE updates flow through
   const selectedApp = useMemo(() => {
     if (!selectedAppId) return null;
     return stats.find(s => s.app_id === selectedAppId) || null;
   }, [selectedAppId, stats]);
 
-  // Extract SearXNG app — shown as search bar, not a card
   const searxngApp = useMemo(() => stats.find(s => s.type === 'searxng'), [stats]);
 
   const filtered = useMemo(() => stats.filter(s => {
@@ -56,10 +51,8 @@ export default function Dashboard() {
     return true;
   }), [stats, search, categoryFilter]);
 
-  // Dynamic sections from customise settings
   const sectionDefs = useMemo(() => getSections(custom), [custom]);
 
-  // Build set of types claimed by type-based sections (to exclude from category sections)
   const typeClaimed = useMemo(() => {
     const set = new Set();
     for (const s of sectionDefs) {
@@ -68,7 +61,6 @@ export default function Dashboard() {
     return set;
   }, [sectionDefs]);
 
-  // Build sections from filtered apps
   const sections = useMemo(() => {
     const result = [];
     const placed = new Set();
@@ -76,13 +68,12 @@ export default function Dashboard() {
     for (const sec of sectionDefs) {
       let items;
       if (sec.filterMode === 'types') {
-        items = filtered.filter(s => sec.types.includes(s.type));
+        items = filtered.filter(s => !placed.has(s.app_id) && sec.types.includes(s.type));
       } else {
-        // Match by categories array + always include section label as a category
         const cats = new Set(sec.categories || []);
         cats.add(sec.label);
         items = filtered.filter(s =>
-          cats.has(s.category) && !typeClaimed.has(s.type)
+          !placed.has(s.app_id) && cats.has(s.category) && !typeClaimed.has(s.type)
         );
       }
       items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
@@ -92,7 +83,6 @@ export default function Dashboard() {
       }
     }
 
-    // Catch any unplaced apps
     const remaining = filtered.filter(s => !placed.has(s.app_id)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
     if (remaining.length > 0) {
       result.push({ label: 'Other', colCount: 3, items: remaining });
@@ -196,7 +186,7 @@ export default function Dashboard() {
           <div className="footer-inner">
             <span>Created and designed by xSniper</span>
             <span className="footer-sep">|</span>
-            <span>&copy; {new Date().getFullYear()} Homelab Dashboard <button onClick={() => setShowChangelog(true)} className="text-inherit hover:text-t transition-colors cursor-pointer underline decoration-dotted underline-offset-2">v1.1.1</button></span>
+            <span>&copy; {new Date().getFullYear()} Homelab Dashboard <button onClick={() => setShowChangelog(true)} className="text-inherit hover:text-t transition-colors cursor-pointer underline decoration-dotted underline-offset-2">v1.2.0</button></span>
             <span className="footer-sep">|</span>
             <a href="https://github.com/sirxsniper/homelab-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
             <span className="footer-sep">|</span>
