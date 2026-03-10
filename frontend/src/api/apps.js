@@ -20,6 +20,11 @@ export async function deleteApp(id) {
   return res.data;
 }
 
+export async function getAppCredential(id) {
+  const res = await client.get(`/apps/${id}/credential`);
+  return res.data;
+}
+
 export async function triggerAction(id, action) {
   const res = await client.post(`/apps/${id}/action`, action);
   return res.data;

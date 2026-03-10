@@ -136,6 +136,20 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   res.json({ message: 'App deleted' });
 });
 
+// GET /api/apps/:id/credential — fetch decrypted credential (admin only)
+router.get('/:id/credential', authenticate, requireAdmin, (req, res) => {
+  const db = getDb();
+  const app = db.prepare('SELECT credential FROM apps WHERE id = ?').get(req.params.id);
+  if (!app) return res.status(404).json({ error: 'App not found' });
+  if (!app.credential) return res.json({});
+  try {
+    const cred = JSON.parse(decrypt(app.credential));
+    res.json(cred);
+  } catch {
+    res.json({});
+  }
+});
+
 // POST /api/apps/:id/action — trigger quick action
 router.post('/:id/action', authenticate, requireAdmin, async (req, res) => {
   const db = getDb();

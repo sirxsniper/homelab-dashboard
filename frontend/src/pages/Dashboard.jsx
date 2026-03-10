@@ -6,30 +6,18 @@ import AppCard from '../components/cards/AppCard';
 import AppDetailModal from '../components/modals/AppDetailModal';
 import AdminModal from '../components/modals/AdminModal';
 import useSSE from '../hooks/useSSE';
-import { useCustomise } from '../hooks/useCustomise';
+import { useCustomise, getSections, getAllCategories } from '../hooks/useCustomise';
 import SearxngSearchBar from '../components/SearxngSearchBar';
-
-const CATEGORIES = ['All', 'Infrastructure', 'Media', 'Downloads', 'Automation', 'Network', 'Monitoring', 'Security', 'Misc'];
-
-// Section grouping order — apps grouped by category in this order
-// colKey maps to settings key for per-section column count
-const SECTION_ORDER = [
-  { key: 'servers', label: 'Bare Metal Servers', colKey: 'colServers', filter: s => s.type === 'proxmox' || s.type === 'unraid' || s.type === 'linux' },
-  { key: 'Network', label: 'Network & Security', colKey: 'colNetwork', categories: ['Network', 'Security'] },
-  { key: 'Monitoring', label: 'Monitoring', colKey: 'colMonitoring', categories: ['Monitoring'] },
-  { key: 'Media', label: 'Media', colKey: 'colMedia', categories: ['Media'] },
-  { key: 'Downloads', label: 'Downloads', colKey: 'colDownloads', categories: ['Downloads'] },
-  { key: 'Automation', label: 'Automation', colKey: 'colAutomation', categories: ['Automation'] },
-  { key: 'Infrastructure', label: 'Infrastructure', colKey: 'colInfrastructure', categories: ['Infrastructure'] },
-  { key: 'Misc', label: 'Misc', colKey: 'colMisc', categories: ['Misc'] },
-];
+import ChangelogModal from '../components/modals/ChangelogModal';
 
 export default function Dashboard() {
   const [selectedAppId, setSelectedAppId] = useState(null);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const custom = useCustomise();
+  const categories = useMemo(() => ['All', ...getAllCategories(custom)], [custom]);
 
   // SSE is the primary data source — delivers stats every 3s
   const sseStats = useSSE();
@@ -68,24 +56,38 @@ export default function Dashboard() {
     return true;
   }), [stats, search, categoryFilter]);
 
+  // Dynamic sections from customise settings
+  const sectionDefs = useMemo(() => getSections(custom), [custom]);
+
+  // Build set of types claimed by type-based sections (to exclude from category sections)
+  const typeClaimed = useMemo(() => {
+    const set = new Set();
+    for (const s of sectionDefs) {
+      if (s.filterMode === 'types') s.types.forEach(t => set.add(t));
+    }
+    return set;
+  }, [sectionDefs]);
+
   // Build sections from filtered apps
   const sections = useMemo(() => {
     const result = [];
     const placed = new Set();
 
-    for (const section of SECTION_ORDER) {
+    for (const sec of sectionDefs) {
       let items;
-      if (section.filter) {
-        items = filtered.filter(s => section.filter(s));
+      if (sec.filterMode === 'types') {
+        items = filtered.filter(s => sec.types.includes(s.type));
       } else {
+        // Match by categories array + always include section label as a category
+        const cats = new Set(sec.categories || []);
+        cats.add(sec.label);
         items = filtered.filter(s =>
-          section.categories.includes(s.category) &&
-          s.type !== 'proxmox' && s.type !== 'unraid' && s.type !== 'linux'
+          cats.has(s.category) && !typeClaimed.has(s.type)
         );
       }
       items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
       if (items.length > 0) {
-        result.push({ label: section.label, colKey: section.colKey, items });
+        result.push({ label: sec.label, colCount: sec.colCount || 3, items });
         items.forEach(s => placed.add(s.app_id));
       }
     }
@@ -93,11 +95,11 @@ export default function Dashboard() {
     // Catch any unplaced apps
     const remaining = filtered.filter(s => !placed.has(s.app_id)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
     if (remaining.length > 0) {
-      result.push({ label: 'Other', colKey: 'colMisc', items: remaining });
+      result.push({ label: 'Other', colCount: 3, items: remaining });
     }
 
     return result;
-  }, [filtered]);
+  }, [filtered, sectionDefs, typeClaimed]);
 
   return (
     <div className={`min-h-screen ${custom.bgImage ? '' : 'bg-bg'}`}>
@@ -125,7 +127,7 @@ export default function Dashboard() {
           </div>
 
           {/* Category pills */}
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
@@ -154,25 +156,22 @@ export default function Dashboard() {
         )}
 
         {/* Card grid — grouped by section, each section has its own column count */}
-        {!isLoading && sections.length > 0 && sections.map((section, sIdx) => {
-          const cols = custom[section.colKey] || 3;
-          return (
-            <div key={section.label}>
-              <div className={`flex items-center pb-[14px] pl-[2px] ${sIdx > 0 ? 'mt-[38px]' : ''}`}>
-                <span className="section-title">{section.label}</span>
-                <div className="section-title-line" />
-              </div>
-              <div
-                className="grid gap-[14px] items-start section-grid"
-                style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-              >
-                {section.items.map((app, i) => (
-                  <AppCard key={app.app_id} app={app} index={i} onClick={() => setSelectedAppId(app.app_id)} cols={cols} />
-                ))}
-              </div>
+        {!isLoading && sections.length > 0 && sections.map((section, sIdx) => (
+          <div key={section.label}>
+            <div className={`flex items-center pb-[14px] pl-[2px] ${sIdx > 0 ? 'mt-[38px]' : ''}`}>
+              <span className="section-title">{section.label}</span>
+              <div className="section-title-line" />
             </div>
-          );
-        })}
+            <div
+              className="grid gap-[14px] items-start section-grid"
+              style={{ gridTemplateColumns: `repeat(${section.colCount}, 1fr)` }}
+            >
+              {section.items.map((app, i) => (
+                <AppCard key={app.app_id} app={app} index={i} onClick={() => setSelectedAppId(app.app_id)} cols={section.colCount} />
+              ))}
+            </div>
+          </div>
+        ))}
 
         {/* Empty */}
         {!isLoading && filtered.length === 0 && (
@@ -197,7 +196,7 @@ export default function Dashboard() {
           <div className="footer-inner">
             <span>Created and designed by xSniper</span>
             <span className="footer-sep">|</span>
-            <span>&copy; {new Date().getFullYear()} Homelab Dashboard v1.1.0</span>
+            <span>&copy; {new Date().getFullYear()} Homelab Dashboard <button onClick={() => setShowChangelog(true)} className="text-inherit hover:text-t transition-colors cursor-pointer underline decoration-dotted underline-offset-2">v1.1.0</button></span>
             <span className="footer-sep">|</span>
             <a href="https://github.com/sirxsniper/homelab-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
             <span className="footer-sep">|</span>
@@ -208,6 +207,7 @@ export default function Dashboard() {
 
       {selectedApp && <AppDetailModal app={selectedApp} onClose={() => setSelectedAppId(null)} />}
       {showAdmin && <AdminModal onClose={() => setShowAdmin(false)} />}
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
     </div>
   );
 }

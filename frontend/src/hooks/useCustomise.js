@@ -3,6 +3,50 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 const HL_KEY = 'hl_custom';
 const EVENT = 'hl_custom_changed';
 
+/* ── Default section definitions ── */
+export const DEFAULT_SECTIONS = [
+  { key: 'servers', label: 'Bare Metal Servers', filterMode: 'types', types: ['proxmox', 'unraid', 'linux'], categories: [], colCount: 3 },
+  { key: 'Network', label: 'Network & Security', filterMode: 'categories', types: [], categories: ['Network', 'Security'], colCount: 3 },
+  { key: 'Monitoring', label: 'Monitoring', filterMode: 'categories', types: [], categories: ['Monitoring'], colCount: 3 },
+  { key: 'Media', label: 'Media', filterMode: 'categories', types: [], categories: ['Media'], colCount: 3 },
+  { key: 'Downloads', label: 'Downloads', filterMode: 'categories', types: [], categories: ['Downloads'], colCount: 3 },
+  { key: 'Automation', label: 'Automation', filterMode: 'categories', types: [], categories: ['Automation'], colCount: 3 },
+  { key: 'Infrastructure', label: 'Infrastructure', filterMode: 'categories', types: [], categories: ['Infrastructure'], colCount: 3 },
+  { key: 'Misc', label: 'Misc', filterMode: 'categories', types: [], categories: ['Misc'], colCount: 3 },
+];
+
+const LEGACY_COL_MAP = {
+  servers: 'colServers', Network: 'colNetwork', Monitoring: 'colMonitoring',
+  Media: 'colMedia', Downloads: 'colDownloads', Automation: 'colAutomation',
+  Infrastructure: 'colInfrastructure', Misc: 'colMisc',
+};
+
+/** Get sections array — custom or defaults with legacy column overrides */
+export function getSections(settings) {
+  if (Array.isArray(settings.sections) && settings.sections.length > 0) return settings.sections;
+  return DEFAULT_SECTIONS.map(s => ({
+    ...s,
+    colCount: settings[LEGACY_COL_MAP[s.key]] ?? s.colCount,
+  }));
+}
+
+const BASE_CATEGORIES = ['Infrastructure', 'Media', 'Downloads', 'Automation', 'Network', 'Monitoring', 'Security', 'Misc', 'Other'];
+
+/** Get all categories — base + any custom ones from sections (categories + labels) */
+export function getAllCategories(settings) {
+  const secs = getSections(settings);
+  const all = [...BASE_CATEGORIES];
+  for (const s of secs) {
+    // Add categories from category-mode sections
+    for (const c of (s.categories || [])) {
+      if (c && !all.includes(c)) all.push(c);
+    }
+    // Also add the section label itself as a category (users expect this)
+    if (s.label && !all.includes(s.label)) all.push(s.label);
+  }
+  return all;
+}
+
 /* ── Default values (match global.css) ── */
 export const DEFAULTS = {
   // Dashboard
@@ -69,6 +113,9 @@ export const DEFAULTS = {
   weatherApiKey: '',
   weatherLocation: '',
   weatherUnits: 'metric',
+
+  // Sections (null = use built-in defaults)
+  sections: null,
 };
 
 /* ── CSS variable mapping ── */
