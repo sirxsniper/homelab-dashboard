@@ -28,38 +28,75 @@ module.exports = {
         // Sign-in failed — continue without auth
       }
     } else if (credential?.api_key) {
-      // Backwards compatibility: support existing API key credentials
       token = credential.api_key.trim().replace(/[\r\n]/g, '');
     }
 
-    // Try to get models list
-    let modelsCount = 0;
-    let modelsList = [];
-    if (token) {
-      try {
-        const modelsRes = await client.get('/api/v1/models', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = modelsRes.data;
-        const models = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        modelsCount = models.length;
-        modelsList = models.slice(0, 20).map(m => ({
-          id: m.id || m.name || 'Unknown',
-          name: m.name || m.id || 'Unknown',
-          owned_by: m.owned_by || null,
-        }));
-      } catch {
-        // Models endpoint may not be available
-      }
-    }
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    const get = (url) => client.get(url, { headers: authHeaders }).catch(() => ({ data: null }));
+
+    // Fetch all data in parallel
+    const [modelsRes, usersRes, chatsRes, knowledgeRes, promptsRes, toolsRes] = await Promise.all([
+      get('/api/v1/models'),
+      get('/api/v1/users/'),
+      get('/api/v1/chats/'),
+      get('/api/v1/knowledge/'),
+      get('/api/v1/prompts/'),
+      get('/api/v1/tools/'),
+    ]);
+
+    // Models
+    const modelsData = modelsRes.data;
+    const modelsArr = Array.isArray(modelsData) ? modelsData : (Array.isArray(modelsData?.data) ? modelsData.data : []);
+    const modelsList = modelsArr.slice(0, 30).map(m => ({
+      id: m.id || m.name || 'Unknown',
+      name: m.name || m.id || 'Unknown',
+      owned_by: m.owned_by || null,
+    }));
+
+    // Users
+    const usersData = usersRes.data;
+    const usersArr = Array.isArray(usersData?.users) ? usersData.users : (Array.isArray(usersData) ? usersData : []);
+    const usersTotal = usersData?.total || usersArr.length;
+    const adminCount = usersArr.filter(u => u.role === 'admin').length;
+    const activeRecently = usersArr.filter(u => {
+      if (!u.last_active_at) return false;
+      const last = typeof u.last_active_at === 'number' ? u.last_active_at * 1000 : new Date(u.last_active_at).getTime();
+      return Date.now() - last < 24 * 60 * 60 * 1000;
+    }).length;
+
+    // Chats
+    const chatsArr = Array.isArray(chatsRes.data) ? chatsRes.data : [];
+    const recentChats = chatsArr.slice(0, 10).map(c => ({
+      title: c.title || 'Untitled',
+      updated_at: c.updated_at || c.created_at || null,
+    }));
+
+    // Knowledge bases
+    const knowledgeData = knowledgeRes.data;
+    const knowledgeArr = Array.isArray(knowledgeData?.items) ? knowledgeData.items : (Array.isArray(knowledgeData) ? knowledgeData : []);
+    const knowledgeTotal = knowledgeData?.total || knowledgeArr.length;
+
+    // Prompts
+    const promptsArr = Array.isArray(promptsRes.data) ? promptsRes.data : [];
+
+    // Tools
+    const toolsArr = Array.isArray(toolsRes.data) ? toolsRes.data : [];
 
     return {
       status: 'online',
-      models_count: modelsCount,
+      models_count: modelsArr.length,
       models: modelsList,
+      users_total: usersTotal,
+      users_admin: adminCount,
+      users_active_24h: activeRecently,
+      chats_count: chatsArr.length,
+      recent_chats: recentChats,
+      knowledge_count: knowledgeTotal,
+      prompts_count: promptsArr.length,
+      tools_count: toolsArr.length,
       response_time: responseTime,
     };
   },
 
-  historyKeys: [],
+  historyKeys: ['models_count', 'chats_count'],
 };

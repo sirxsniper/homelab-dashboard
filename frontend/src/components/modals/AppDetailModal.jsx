@@ -1247,6 +1247,97 @@ function NextcloudDetail({ data }) {
   );
 }
 
+function OpenWebuiDetail({ data }) {
+  const [tab, setTab] = useState('overview');
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'models', label: 'Models' },
+    { key: 'chats', label: 'Recent Chats' },
+  ];
+
+  const fmtAgo = (ts) => {
+    if (!ts) return '';
+    const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+    const diff = Date.now() - d.getTime();
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  };
+
+  return (
+    <>
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <>
+          <StatRow>
+            <StatBox label="Models" value={data.models_count ?? 0} />
+            <StatBox label="Chats" value={data.chats_count ?? 0} />
+            <StatBox label="Users" value={data.users_total ?? 0} />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Admins" value={data.users_admin ?? 0} small />
+            <StatBox label="Active 24h" value={data.users_active_24h ?? 0} small />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Knowledge" value={data.knowledge_count ?? 0} small />
+            <StatBox label="Prompts" value={data.prompts_count ?? 0} small />
+            <StatBox label="Tools" value={data.tools_count ?? 0} small />
+          </StatRow>
+          {data.response_time && (
+            <StatRow>
+              <StatBox label="Response" value={`${data.response_time}ms`} small />
+            </StatRow>
+          )}
+        </>
+      )}
+
+      {tab === 'models' && (
+        <>
+          {data.models?.length > 0 ? (
+            <>
+              <div className="section-label">Available Models ({data.models_count})</div>
+              <ItemList>
+                {data.models.map((m, i) => (
+                  <ItemRow key={i} name={m.name} sub={m.owned_by || null} />
+                ))}
+              </ItemList>
+            </>
+          ) : (
+            <div className="text-[12px] text-t3 py-[16px] text-center">No models available</div>
+          )}
+        </>
+      )}
+
+      {tab === 'chats' && (
+        <>
+          {data.recent_chats?.length > 0 ? (
+            <>
+              <div className="section-label">Recent Conversations</div>
+              <ItemList>
+                {data.recent_chats.map((c, i) => (
+                  <ItemRow key={i} name={c.title} value={fmtAgo(c.updated_at)} />
+                ))}
+              </ItemList>
+            </>
+          ) : (
+            <div className="text-[12px] text-t3 py-[16px] text-center">No chats yet</div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function OllamaDetail({ data }) {
   return (
     <>
@@ -1525,7 +1616,7 @@ const detailRenderers = {
   mariadb: MariadbDetail,
   redis_server: RedisDetail,
   searxng: GenericDetail,
-  open_webui: GenericDetail,
+  open_webui: OpenWebuiDetail,
   notifiarr: NotifiarrDetail,
   iperf3: Iperf3Detail,
   seerr: SeerrDetail,

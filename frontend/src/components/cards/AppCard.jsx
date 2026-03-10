@@ -75,7 +75,7 @@ const cardBodies = {
 const cardSizes = {
   proxmox: 'full', unraid: 'full', linux: 'full',
   nginx_proxy: 'wide', uptime_kuma: 'wide', nextcloud: 'wide',
-  searxng: 'small', iperf3: 'small', phpmyadmin: 'small', open_webui: 'small',
+  searxng: 'small', iperf3: 'small', phpmyadmin: 'small',
 };
 
 const AppCard = React.memo(function AppCard({ app, onClick, index = 0 }) {
