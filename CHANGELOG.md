@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+
+### Security
+- Upgraded Docker base image from Node 20 to Node 22.
+- Removed npm from production image (not needed at runtime) — eliminates 15 CVEs in bundled npm dependencies (tar, minimatch, cross-spawn, glob).
+
 ## v1.1.0
 
 ### New Features

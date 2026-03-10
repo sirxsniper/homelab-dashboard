@@ -2,6 +2,19 @@ import { useState } from 'react';
 
 const CHANGELOG = [
   {
+    version: '1.1.1',
+    date: '2026-03-10',
+    sections: [
+      {
+        title: 'Security',
+        items: [
+          'Upgraded Docker base image from Node 20 to Node 22',
+          'Removed npm from production image (not needed at runtime) — eliminates 15 CVEs in bundled npm dependencies (tar, minimatch, cross-spawn, glob)',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-03-10',
     sections: [

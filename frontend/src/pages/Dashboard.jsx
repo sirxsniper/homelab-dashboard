@@ -196,7 +196,7 @@ export default function Dashboard() {
           <div className="footer-inner">
             <span>Created and designed by xSniper</span>
             <span className="footer-sep">|</span>
-            <span>&copy; {new Date().getFullYear()} Homelab Dashboard <button onClick={() => setShowChangelog(true)} className="text-inherit hover:text-t transition-colors cursor-pointer underline decoration-dotted underline-offset-2">v1.1.0</button></span>
+            <span>&copy; {new Date().getFullYear()} Homelab Dashboard <button onClick={() => setShowChangelog(true)} className="text-inherit hover:text-t transition-colors cursor-pointer underline decoration-dotted underline-offset-2">v1.1.1</button></span>
             <span className="footer-sep">|</span>
             <a href="https://github.com/sirxsniper/homelab-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
             <span className="footer-sep">|</span>

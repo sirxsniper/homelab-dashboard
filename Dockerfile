@@ -1,5 +1,5 @@
 # ── Stage 1: Build frontend ──
-FROM node:20-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
@@ -7,18 +7,20 @@ COPY frontend/ ./
 RUN npm run build
 
 # ── Stage 2: Install backend dependencies ──
-FROM node:20-alpine AS backend-deps
+FROM node:22-alpine AS backend-deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --omit=dev
 
 # ── Stage 3: Production image ──
-FROM node:20-alpine
+FROM node:22-alpine
 
-# Install nginx and iperf3
+# Install nginx and iperf3, remove npm (not needed at runtime) to eliminate CVEs
 RUN apk add --no-cache nginx iperf3 \
-    && mkdir -p /run/nginx
+    && mkdir -p /run/nginx \
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
 
