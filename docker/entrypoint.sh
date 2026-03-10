@@ -3,18 +3,45 @@ set -e
 
 cd /app/backend
 
-# Auto-generate secrets if not provided
-if [ "$JWT_ACCESS_SECRET" = "" ] || [ "$JWT_ACCESS_SECRET" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
-  export JWT_ACCESS_SECRET=$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')
-  echo "[Init] Auto-generated JWT_ACCESS_SECRET"
+SECRETS_FILE="/app/backend/data/.secrets"
+
+# Load persisted secrets if they exist (survives container restarts)
+if [ -f "$SECRETS_FILE" ]; then
+  . "$SECRETS_FILE"
 fi
-if [ "$JWT_REFRESH_SECRET" = "" ] || [ "$JWT_REFRESH_SECRET" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
-  export JWT_REFRESH_SECRET=$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')
-  echo "[Init] Auto-generated JWT_REFRESH_SECRET"
+
+# Generate and persist secrets if not set
+generate_secret() {
+  head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n'
+}
+
+DIRTY=0
+
+if [ -z "$JWT_ACCESS_SECRET" ] || [ "$JWT_ACCESS_SECRET" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
+  export JWT_ACCESS_SECRET=$(generate_secret)
+  echo "[Init] Generated JWT_ACCESS_SECRET"
+  DIRTY=1
 fi
-if [ "$CREDENTIAL_ENCRYPTION_KEY" = "" ] || [ "$CREDENTIAL_ENCRYPTION_KEY" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
-  export CREDENTIAL_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')
-  echo "[Init] Auto-generated CREDENTIAL_ENCRYPTION_KEY"
+if [ -z "$JWT_REFRESH_SECRET" ] || [ "$JWT_REFRESH_SECRET" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
+  export JWT_REFRESH_SECRET=$(generate_secret)
+  echo "[Init] Generated JWT_REFRESH_SECRET"
+  DIRTY=1
+fi
+if [ -z "$CREDENTIAL_ENCRYPTION_KEY" ] || [ "$CREDENTIAL_ENCRYPTION_KEY" = "CHANGE_ME_generate_with_openssl_rand_hex_32" ]; then
+  export CREDENTIAL_ENCRYPTION_KEY=$(generate_secret)
+  echo "[Init] Generated CREDENTIAL_ENCRYPTION_KEY"
+  DIRTY=1
+fi
+
+# Persist secrets to data volume so they survive restarts
+if [ "$DIRTY" = "1" ]; then
+  cat > "$SECRETS_FILE" <<EOL
+export JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
+export JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
+export CREDENTIAL_ENCRYPTION_KEY="$CREDENTIAL_ENCRYPTION_KEY"
+EOL
+  chmod 600 "$SECRETS_FILE"
+  echo "[Init] Secrets saved to data volume"
 fi
 
 # Defaults

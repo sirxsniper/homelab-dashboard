@@ -4,6 +4,9 @@ backend/node_modules
 frontend/dist
 backend/data
 backend/.env
+*.db
+*.db-shm
+*.db-wal
 .git
 .gitignore
 *.md
