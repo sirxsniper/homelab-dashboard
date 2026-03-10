@@ -5,7 +5,7 @@ export default function OpenWebuiCard({ data }) {
   return (
     <StatRow>
       <StatBox label="Status" value={data.status || 'unknown'} />
-      <StatBox label="Models" value={data.models || '—'} />
+      <StatBox label="Models" value={data.models_count ?? '—'} />
       <StatBox label="Response" value={fmtMs(data.response_time)} small />
     </StatRow>
   );

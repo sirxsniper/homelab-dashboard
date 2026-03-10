@@ -151,8 +151,12 @@ const APP_TYPE_CONFIG = {
     credFields: [],
   },
   open_webui: {
-    label: 'Open-WebUI', defaultAuth: 'api_key', defaultCategory: 'Misc', defaultIcon: '💬',
-    credFields: [{ key: 'api_key', label: 'API Key', placeholder: 'Settings → Account', type: 'password', optional: true }],
+    label: 'Open-WebUI', defaultAuth: 'user_pass', defaultCategory: 'Misc', defaultIcon: '💬',
+    credFields: [
+      { key: 'username', label: 'Email', placeholder: 'admin@example.com', type: 'text' },
+      { key: 'password', label: 'Password', placeholder: 'Your Open-WebUI password', type: 'password' },
+    ],
+    credHint: 'Uses your Open-WebUI login credentials to authenticate. The dashboard signs in automatically to fetch models and status.',
   },
   linkding: {
     label: 'Linkding', defaultAuth: 'api_key', defaultCategory: 'Misc', defaultIcon: '🔗',

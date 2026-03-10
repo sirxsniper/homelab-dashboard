@@ -1000,6 +1000,18 @@ function BazarrDetail({ data }) {
         <StatBox label="Providers" value={data.providers} />
       </StatRow>
       {data.version && <StatRow><StatBox label="Version" value={data.version} small truncate /></StatRow>}
+      {data.provider_list?.length > 0 && (
+        <>
+          <div className="section-label">Providers</div>
+          <div className="flex flex-wrap gap-[6px] mb-[10px]">
+            {data.provider_list.map((p, i) => (
+              <span key={i} className="text-[11px] px-[8px] py-[3px] rounded-[var(--radius-tag)] bg-s2 border border-bd text-t2 font-medium">
+                {p}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
       {data.history?.length > 0 && (
         <><div className="section-label">Recent</div><ItemList>{data.history.map((h, i) => <ItemRow key={i} name={h.title || h} />)}</ItemList></>
       )}
@@ -1068,11 +1080,26 @@ function QbittorrentDetail({ data }) {
 
 function MetubeDetail({ data }) {
   return (
-    <StatRow>
-      <StatBox label="Queue" value={data.queue_count} />
-      <StatBox label="Completed" value={data.completed} />
-      <StatBox label="Failed" value={data.failed} />
-    </StatRow>
+    <>
+      <StatRow>
+        <StatBox label="Queue" value={data.queue_count} />
+        <StatBox label="Completed" value={data.completed} />
+        <StatBox label="Failed" value={data.failed} />
+      </StatRow>
+      {data.completed_list?.length > 0 && (
+        <>
+          <div className="section-label">Completed Downloads</div>
+          <ItemList>
+            {data.completed_list.map((item, i) => (
+              <ItemRow key={i}
+                name={item.title}
+                sub={[item.format, item.size].filter(Boolean).join(' · ') || null}
+              />
+            ))}
+          </ItemList>
+        </>
+      )}
+    </>
   );
 }
 

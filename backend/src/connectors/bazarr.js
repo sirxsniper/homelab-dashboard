@@ -14,17 +14,19 @@ module.exports = {
 
     const client = axios.create({ baseURL: baseUrl, headers, timeout: 10000 });
 
-    const [statusRes, wantedSeriesRes, wantedMoviesRes, historyRes] = await Promise.all([
+    const [statusRes, wantedSeriesRes, wantedMoviesRes, historyRes, providersRes] = await Promise.all([
       client.get('/api/system/status'),
       client.get('/api/episodes/wanted', { params: { length: 5 } }),
       client.get('/api/movies/wanted', { params: { length: 5 } }),
       client.get('/api/episodes/history', { params: { length: 5 } }),
+      client.get('/api/providers').catch(() => ({ data: [] })),
     ]);
 
     const status = statusRes.data;
     const wantedSeries = wantedSeriesRes.data;
     const wantedMovies = wantedMoviesRes.data;
     const history = historyRes.data;
+    const providersData = providersRes.data;
 
     const wantedSeriesCount = wantedSeries.total || (Array.isArray(wantedSeries.data) ? wantedSeries.data.length : 0);
     const wantedMoviesCount = wantedMovies.total || (Array.isArray(wantedMovies.data) ? wantedMovies.data.length : 0);
@@ -33,7 +35,10 @@ module.exports = {
       title: h.parsed_title || h.seriesTitle || h.title || 'Unknown',
     }));
 
-    const providerCount = status.data?.providers_count || (Array.isArray(status.data?.providers) ? status.data.providers.length : 0);
+    // Providers: try dedicated endpoint, then fall back to status data
+    const providersList = Array.isArray(providersData) ? providersData : (Array.isArray(providersData?.data) ? providersData.data : []);
+    const providerCount = providersList.length;
+    const providerNames = providersList.map(p => p.name || p).filter(Boolean);
 
     return {
       status: 'online',
@@ -42,6 +47,7 @@ module.exports = {
       wanted_movies: wantedMoviesCount,
       history: historyItems,
       providers: providerCount,
+      provider_list: providerNames,
     };
   },
 
