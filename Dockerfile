@@ -16,8 +16,10 @@ RUN npm ci --omit=dev
 # ── Stage 3: Production image ──
 FROM node:22-alpine
 
-# Install nginx and iperf3, remove npm (not needed at runtime) to eliminate CVEs
-RUN apk add --no-cache nginx iperf3 \
+# Upgrade all base packages (fixes CVEs in zlib, busybox, etc), install nginx/iperf3,
+# remove npm (not needed at runtime)
+RUN apk upgrade --no-cache \
+    && apk add --no-cache nginx iperf3 \
     && mkdir -p /run/nginx \
     && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
