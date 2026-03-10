@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../services/db');
 const { authenticate } = require('../middleware/auth');
+const historyStore = require('../services/historyStore');
 
 const router = express.Router();
 
@@ -15,18 +16,27 @@ router.get('/', authenticate, (req, res) => {
     ORDER BY a.sort_order, a.name
   `).all();
 
-  const stats = rows.map(row => ({
-    app_id: row.app_id,
-    name: row.name,
-    type: row.type,
-    icon: row.icon,
-    url: row.url,
-    open_url: row.open_url,
-    category: row.category,
-    sort_order: row.sort_order || 0,
-    data: JSON.parse(row.data),
-    updated_at: row.updated_at,
-  }));
+  const stats = rows.map(row => {
+    const entry = {
+      app_id: row.app_id,
+      name: row.name,
+      type: row.type,
+      icon: row.icon,
+      url: row.url,
+      open_url: row.open_url,
+      category: row.category,
+      sort_order: row.sort_order || 0,
+      data: JSON.parse(row.data),
+      updated_at: row.updated_at,
+    };
+    if (row.type === 'proxmox' || row.type === 'unraid' || row.type === 'linux') {
+      entry.sparkline = {
+        cpu: historyStore.get(`${row.app_id}_cpu`),
+        ram: historyStore.get(`${row.app_id}_ram`),
+      };
+    }
+    return entry;
+  });
 
   res.json(stats);
 });

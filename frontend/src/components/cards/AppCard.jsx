@@ -1,3 +1,4 @@
+import React from 'react';
 import StatusPill from '../ui/StatusPill';
 import ProxmoxCard from './card-bodies/ProxmoxCard';
 import UnraidCard from './card-bodies/UnraidCard';
@@ -74,10 +75,10 @@ const cardBodies = {
 const cardSizes = {
   proxmox: 'full', unraid: 'full', linux: 'full',
   nginx_proxy: 'wide', uptime_kuma: 'wide', nextcloud: 'wide',
-  searxng: 'small', iperf3: 'small', phpmyadmin: 'small', notifiarr: 'small', open_webui: 'small',
+  searxng: 'small', iperf3: 'small', phpmyadmin: 'small', open_webui: 'small',
 };
 
-export default function AppCard({ app, onClick, index = 0 }) {
+const AppCard = React.memo(function AppCard({ app, onClick, index = 0 }) {
   const { data, type, name, icon, category } = app;
   const status = data?.error ? 'offline' : (data?.status || 'unknown');
   const CardBody = cardBodies[type] || GenericCard;
@@ -139,4 +140,12 @@ export default function AppCard({ app, onClick, index = 0 }) {
       )}
     </div>
   );
-}
+}, (prev, next) => {
+  return prev.index === next.index &&
+    prev.app.app_id === next.app.app_id &&
+    prev.app.data === next.app.data &&
+    prev.app.sparkline === next.app.sparkline &&
+    prev.app.open_url === next.app.open_url;
+});
+
+export default AppCard;

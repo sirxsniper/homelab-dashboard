@@ -1,26 +1,27 @@
-import { useMemo, useId } from 'react';
+import { useMemo, useId, memo } from 'react';
 
-export default function Sparkline({ data = [], color = 'var(--color-red)', height = 36 }) {
+export default memo(function Sparkline({ data = [], color = 'var(--color-red)', height = 36 }) {
   const id = useId();
   const gradId = `spark-${id}`;
 
-  const points = useMemo(() => {
-    if (!data.length) return null;
+  const dataKey = data.join(',');
+
+  const { line, area, last } = useMemo(() => {
+    if (!data.length || data.length < 2) return { line: null, area: null, last: null };
     const max = Math.max(...data);
     const min = Math.min(...data);
     const range = max - min || 1;
     const step = 100 / (data.length - 1 || 1);
-    return data.map((v, i) => ({
+    const points = data.map((v, i) => ({
       x: i * step,
       y: height - ((v - min) / range) * (height * 0.85) - (height * 0.07),
     }));
-  }, [data, height]);
+    const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+    const area = `${line} L${points[points.length - 1].x},${height} L${points[0].x},${height} Z`;
+    return { line, area, last: points[points.length - 1] };
+  }, [dataKey, height]);
 
-  if (!points || points.length < 2) return null;
-
-  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const area = `${line} L${points[points.length - 1].x},${height} L${points[0].x},${height} Z`;
-  const last = points[points.length - 1];
+  if (!line) return null;
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="block">
@@ -35,4 +36,4 @@ export default function Sparkline({ data = [], color = 'var(--color-red)', heigh
       <circle cx={last.x} cy={last.y} r="2" style={{ fill: color }} />
     </svg>
   );
-}
+});

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 
-export default function AnimatedNumber({ value, format = (v) => String(Math.round(v)), duration = 800 }) {
+export default memo(function AnimatedNumber({ value, format = (v) => String(Math.round(v)), duration = 600 }) {
   const [display, setDisplay] = useState(typeof value === 'number' ? value : 0);
   const prevRef = useRef(typeof value === 'number' ? value : 0);
   const rafRef = useRef(null);
@@ -16,10 +16,19 @@ export default function AnimatedNumber({ value, format = (v) => String(Math.roun
     }
 
     const start = performance.now();
+    let lastSet = 0;
+
     const update = (time) => {
       const progress = Math.min((time - start) / duration, 1);
       const ease = 1 - Math.pow(1 - progress, 3);
-      setDisplay(from + (to - from) * ease);
+      const val = from + (to - from) * ease;
+
+      // Throttle state updates to every 50ms
+      if (progress >= 1 || time - lastSet > 50) {
+        setDisplay(val);
+        lastSet = time;
+      }
+
       if (progress < 1) rafRef.current = requestAnimationFrame(update);
     };
     rafRef.current = requestAnimationFrame(update);
@@ -27,4 +36,4 @@ export default function AnimatedNumber({ value, format = (v) => String(Math.roun
   }, [value, duration]);
 
   return <>{format(display)}</>;
-}
+});

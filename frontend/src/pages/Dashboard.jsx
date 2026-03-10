@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllStats } from '../api/stats';
 import Topbar from '../components/layout/Topbar';
@@ -7,6 +7,7 @@ import AppDetailModal from '../components/modals/AppDetailModal';
 import AdminModal from '../components/modals/AdminModal';
 import useSSE from '../hooks/useSSE';
 import { useCustomise } from '../hooks/useCustomise';
+import SearxngSearchBar from '../components/SearxngSearchBar';
 
 const CATEGORIES = ['All', 'Infrastructure', 'Media', 'Downloads', 'Automation', 'Network', 'Monitoring', 'Security', 'Misc'];
 
@@ -33,12 +34,19 @@ export default function Dashboard() {
   // SSE is the primary data source — delivers stats every 3s
   const sseStats = useSSE();
 
+  // Give SSE 400ms to connect before falling back to REST
+  const [sseWait, setSseWait] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setSseWait(false), 400);
+    return () => clearTimeout(t);
+  }, []);
+
   // React Query is fallback only — initial load + safety net
   const { data: fetchedStats = [], isLoading: fetchLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: getAllStats,
-    enabled: !sseStats,  // Only fetch if SSE hasn't delivered data yet
-    staleTime: Infinity,  // Never refetch once SSE is active
+    enabled: !sseStats && !sseWait,
+    staleTime: Infinity,
   });
 
   const stats = sseStats || fetchedStats;
@@ -50,7 +58,11 @@ export default function Dashboard() {
     return stats.find(s => s.app_id === selectedAppId) || null;
   }, [selectedAppId, stats]);
 
+  // Extract SearXNG app — shown as search bar, not a card
+  const searxngApp = useMemo(() => stats.find(s => s.type === 'searxng'), [stats]);
+
   const filtered = useMemo(() => stats.filter(s => {
+    if (s.type === 'searxng') return false;
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (categoryFilter !== 'All' && s.category !== categoryFilter) return false;
     return true;
@@ -93,6 +105,11 @@ export default function Dashboard() {
 
       {/* Content */}
       <div className="py-[24px] px-[22px] max-w-[1920px] mx-auto">
+        {/* SearXNG search bar */}
+        {searxngApp && !searxngApp.data?.error && (
+          <SearxngSearchBar app={searxngApp} />
+        )}
+
         {/* Toolbar */}
         <div className="flex gap-[8px] mb-[22px] flex-wrap items-center toolbar-wrap rounded-[var(--radius-card)] px-[14px] py-[10px] bg-s1/70 backdrop-blur-md border border-bd">
           {/* Search */}
@@ -174,6 +191,19 @@ export default function Dashboard() {
             )}
           </div>
         )}
+
+        {/* Footer */}
+        <footer className="dashboard-footer">
+          <div className="footer-inner">
+            <span>Created and designed by xSniper</span>
+            <span className="footer-sep">|</span>
+            <span>&copy; {new Date().getFullYear()} Homelab Dashboard v1.1.0</span>
+            <span className="footer-sep">|</span>
+            <a href="https://github.com/sirxsniper/homelab-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <span className="footer-sep">|</span>
+            <span>Sponsored by <a href="https://webdns.uk" target="_blank" rel="noopener noreferrer">WebDNS</a></span>
+          </div>
+        </footer>
       </div>
 
       {selectedApp && <AppDetailModal app={selectedApp} onClose={() => setSelectedAppId(null)} />}

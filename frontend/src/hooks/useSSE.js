@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { getAccessToken } from '../store/auth';
 
 export default function useSSE() {
   const [stats, setStats] = useState(null);
   const abortRef = useRef(null);
   const reconnectTimer = useRef(null);
+  const lastJsonRef = useRef('');
 
   useEffect(() => {
     let closed = false;
@@ -23,7 +24,7 @@ export default function useSSE() {
         const controller = new AbortController();
         abortRef.current = controller;
 
-        console.log('[SSE] Connecting via fetch...');
+        // Connect via fetch SSE
         const res = await fetch(`/api/stream?token=${encodeURIComponent(token)}`, {
           signal: controller.signal,
         });
@@ -40,7 +41,7 @@ export default function useSSE() {
           return;
         }
 
-        console.log('[SSE] Connected, reading stream...');
+        // Stream connected
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -63,8 +64,11 @@ export default function useSSE() {
               try {
                 const { type, payload } = JSON.parse(line.slice(6));
                 if (type === 'stats' && payload) {
-                  console.log('[SSE] Got stats, apps:', payload.length);
-                  setStats(payload);
+                  const json = line.slice(6);
+                  if (json !== lastJsonRef.current) {
+                    lastJsonRef.current = json;
+                    setStats(payload);
+                  }
                 }
               } catch (err) {
                 console.error('[SSE] Parse error:', err);

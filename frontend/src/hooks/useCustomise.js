@@ -64,6 +64,11 @@ export const DEFAULTS = {
   // Card radius
   cardRadius: 14,
   innerRadius: 8,
+
+  // Weather widget
+  weatherApiKey: '',
+  weatherLocation: '',
+  weatherUnits: 'metric',
 };
 
 /* ── CSS variable mapping ── */
@@ -143,6 +148,7 @@ export function applyCssVars(settings) {
 
 /* ── External store for useSyncExternalStore ── */
 let _snapshot = loadSettings();
+let _snapshotJson = JSON.stringify(_snapshot);
 const listeners = new Set();
 
 function subscribe(cb) {
@@ -152,7 +158,11 @@ function subscribe(cb) {
 function getSnapshot() { return _snapshot; }
 
 function notify() {
-  _snapshot = loadSettings();
+  const newSnapshot = loadSettings();
+  const newJson = JSON.stringify(newSnapshot);
+  if (newJson === _snapshotJson) return;
+  _snapshot = newSnapshot;
+  _snapshotJson = newJson;
   listeners.forEach(cb => cb());
 }
 

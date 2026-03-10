@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../../api/auth';
 import { getUser } from '../../store/auth';
@@ -15,18 +16,11 @@ export default function Topbar({ onAdminClick, stats }) {
   const dashName = custom.name || 'Homelab';
   const logo = custom.logo || '';
 
-  const total = stats?.length || 0;
-  const offline = stats?.filter(s => s.data?.error || s.data?.status === 'offline').length || 0;
-  const degraded = stats?.filter(s => s.data?.status === 'degraded').length || 0;
-  const waiting = stats?.filter(s => !s.data).length || 0;
-  const online = total > 0 ? total - offline - degraded - waiting : 0;
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
-
-  const healthPct = total > 0 ? Math.round((online / total) * 100) : 0;
 
   return (
     <nav className="topbar sticky top-0 z-100">
@@ -47,25 +41,9 @@ export default function Topbar({ onAdminClick, stats }) {
           <span className="text-[16px] font-semibold tracking-[-0.4px] text-t truncate">{dashName}</span>
         </div>
 
-        {/* Centre — Status summary */}
-        <div className="flex items-center gap-[18px] topbar-pills">
-          {/* Health ring + label */}
-          <div className="flex items-center gap-[12px]">
-            <HealthRing pct={healthPct} />
-            <div className="flex flex-col">
-              <span className="text-[14px] font-semibold text-t leading-none tracking-[-0.2px]">{online}<span className="text-t3 font-normal">/{total}</span></span>
-              <span className="text-[11px] text-t2 leading-tight mt-[2px]">Services Online</span>
-            </div>
-          </div>
-
-          <div className="w-px h-[24px] bg-bd" />
-
-          {/* Status counts */}
-          <div className="flex items-center gap-[14px]">
-            <StatusDot color="green" count={online} label="Online" />
-            {degraded > 0 && <StatusDot color="amber" count={degraded} label="Degraded" />}
-            {offline > 0 && <StatusDot color="red" count={offline} label="Offline" />}
-          </div>
+        {/* Centre — Date & Time */}
+        <div className="topbar-pills">
+          <TopbarClock />
         </div>
 
         {/* Right — User + actions */}
@@ -101,35 +79,31 @@ export default function Topbar({ onAdminClick, stats }) {
   );
 }
 
-/* ── Health ring ── */
-function HealthRing({ pct }) {
-  const r = 15;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (pct / 100) * circ;
-  const color = pct === 100 ? 'var(--color-green)' : pct >= 80 ? 'var(--color-amber)' : 'var(--color-red)';
+/* ── Live clock ── */
+function TopbarClock() {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const h = now.getHours().toString().padStart(2, '0');
+  const m = now.getMinutes().toString().padStart(2, '0');
+  const s = now.getSeconds().toString().padStart(2, '0');
 
   return (
-    <div className="relative w-[36px] h-[36px] shrink-0">
-      <svg width="36" height="36" viewBox="0 0 36 36" className="block -rotate-90">
-        <circle cx="18" cy="18" r={r} fill="none" stroke="var(--color-s3)" strokeWidth="3" />
-        <circle cx="18" cy="18" r={r} fill="none" style={{ stroke: color }} strokeWidth="3"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          strokeLinecap="round" className="transition-all duration-700" />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold font-mono text-t2">{pct}%</span>
-    </div>
-  );
-}
-
-/* ── Status dot ── */
-function StatusDot({ color, count, label }) {
-  const dotCls = color === 'green' ? 'bg-green' : color === 'amber' ? 'bg-amber' : 'bg-red';
-  const pulseClass = color === 'red' && count > 0 ? 'animate-redPulse' : '';
-  return (
-    <div className="flex items-center gap-[6px]" title={`${count} ${label.toLowerCase()}`}>
-      <span className={`w-[7px] h-[7px] rounded-full ${dotCls} ${pulseClass}`} />
-      <span className="text-[13px] font-mono font-semibold text-t2">{count}</span>
-      <span className="text-[12px] text-t3">{label}</span>
+    <div className="flex items-center gap-[14px]">
+      <span className="text-[20px] font-mono font-bold tracking-[-0.5px] text-t leading-none">
+        {h}<span className="topbar-clock-sep">:</span>{m}<span className="text-t3 text-[14px] ml-[2px]">{s}</span>
+      </span>
+      <div className="w-px h-[20px] bg-bd" />
+      <span className="text-[12px] text-t2 leading-none">
+        {days[now.getDay()]}, {now.getDate()} {months[now.getMonth()]}
+      </span>
     </div>
   );
 }

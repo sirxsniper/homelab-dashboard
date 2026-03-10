@@ -965,6 +965,39 @@ function CustomiseSettings() {
         </div>
       </div>
 
+      {/* ── Weather Widget ── */}
+      <SectionHeader>Weather Widget</SectionHeader>
+      <div className="text-[11px] text-t4 mb-[8px]">Shows live weather next to the search bar. Requires a free OpenWeatherMap API key.</div>
+
+      <div className="mb-[14px]">
+        <label className={labelCls}>API Key</label>
+        <input className={inputCls} type="password" value={settings.weatherApiKey} onChange={e => update('weatherApiKey', e.target.value)}
+          placeholder="Enter OpenWeatherMap API key" />
+        <div className="text-[11px] text-t4 mt-[4px]">Get a free key at openweathermap.org. Stored locally in your browser.</div>
+      </div>
+
+      <div className="mb-[14px]">
+        <label className={labelCls}>Location</label>
+        <input className={inputCls} value={settings.weatherLocation} onChange={e => update('weatherLocation', e.target.value)}
+          placeholder="e.g. London,GB" />
+        <div className="text-[11px] text-t4 mt-[4px]">City name with optional country code (e.g. Berlin,DE)</div>
+      </div>
+
+      <div className="mb-[14px]">
+        <label className={labelCls}>Units</label>
+        <div className="flex gap-[4px]">
+          {[['metric', '°C'], ['imperial', '°F']].map(([val, lbl]) => (
+            <button key={val} type="button" onClick={() => update('weatherUnits', val)}
+              className={`px-[14px] py-[6px] rounded-[4px] text-[12px] font-medium border transition-colors
+                ${settings.weatherUnits === val
+                  ? 'bg-s2 border-bd2 text-t'
+                  : 'bg-transparent border-bd text-t3 hover:text-t2 hover:border-bd2'
+                }`}
+            >{lbl}</button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Surface & Background Colours ── */}
       <SectionHeader>Surface Colours</SectionHeader>
       <div className="grid grid-cols-2 gap-[8px] mb-[4px]">

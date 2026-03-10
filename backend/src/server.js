@@ -17,6 +17,7 @@ const statsRoutes = require('./routes/stats');
 const usersRoutes = require('./routes/users');
 const auditRoutes = require('./routes/audit');
 const calendarRoutes = require('./routes/calendar');
+const searxngRoutes = require('./routes/searxng');
 const { router: streamRouter } = require('./routes/stream');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/searxng', searxngRoutes);
 
 // Health check — no sensitive info
 app.get('/api/health', (req, res) => {

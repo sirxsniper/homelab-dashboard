@@ -342,13 +342,82 @@ function UptimeKumaDetail({ data }) {
 }
 
 function PortainerDetail({ data }) {
+  const [tab, setTab] = useState('overview');
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    ...(data.container_list?.length > 0 ? [{ key: 'containers', label: `Containers (${data.container_list.length})` }] : []),
+    ...(data.stack_list?.length > 0 ? [{ key: 'stacks', label: `Stacks (${data.stack_list.length})` }] : []),
+  ];
+
+  const fmtUptime = (ms) => {
+    if (!ms) return null;
+    const s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((s % 3600) / 60)}m`;
+  };
+
   return (
-    <StatRow>
-      <StatBox label="Envs" value={data.environments} small />
-      <StatBox label="Stacks" value={data.stacks} small />
-      <StatBox label="Running" value={data.running} small />
-      <StatBox label="Stopped" value={data.stopped} small />
-    </StatRow>
+    <>
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <>
+          <StatRow>
+            <StatBox label="Running" value={data.running || 0} />
+            <StatBox label="Stopped" value={data.stopped || 0} valueColor={data.stopped > 0 ? 'red' : undefined} />
+            <StatBox label="Stacks" value={data.stacks || 0} />
+            <StatBox label="Environments" value={data.environments || 0} />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Images" value={data.images || 0} small />
+            {data.image_size && <StatBox label="Image Size" value={data.image_size} small />}
+            <StatBox label="Volumes" value={data.volumes || 0} small />
+            {data.networks > 0 && <StatBox label="Networks" value={data.networks} small />}
+          </StatRow>
+          {data.docker_version && (
+            <StatRow>
+              <StatBox label="Docker" value={data.docker_version} small />
+              {data.response_time && <StatBox label="Response" value={`${data.response_time}ms`} small />}
+            </StatRow>
+          )}
+        </>
+      )}
+
+      {tab === 'containers' && (
+        <ItemList>
+          {data.container_list.map((c, i) => (
+            <ItemRow key={i}
+              name={c.name}
+              sub={[c.status, c.ports?.length > 0 ? c.ports.join(', ') : null, fmtUptime(c.uptime)].filter(Boolean).join(' · ') || null}
+              dot={c.state === 'running' ? 'green' : 'red'}
+              value={c.image.split('/').pop().split(':')[0]}
+            />
+          ))}
+        </ItemList>
+      )}
+
+      {tab === 'stacks' && (
+        <ItemList>
+          {data.stack_list.map((s, i) => (
+            <ItemRow key={i}
+              name={s.name}
+              sub={s.type}
+              dot={s.status === 'active' ? 'green' : 'red'}
+              value={s.status}
+            />
+          ))}
+        </ItemList>
+      )}
+    </>
   );
 }
 
@@ -514,6 +583,120 @@ function VaultwardenDetail({ data }) {
       {data.response_time != null && <StatBox label="Response" value={`${data.response_time}ms`} small />}
       {data.version && <StatBox label="Version" value={data.version} small truncate />}
     </StatRow>
+  );
+}
+
+function NotifiarrDetail({ data }) {
+  const [tab, setTab] = useState('overview');
+
+  const fmtUptime = (s) => {
+    if (!s) return '—';
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`;
+  };
+
+  const fmtSince = (iso) => {
+    if (!iso || iso.startsWith('0001')) return null;
+    const d = new Date(iso);
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    ...(data.services?.length > 0 ? [{ key: 'services', label: 'Service Checks' }] : []),
+    ...(data.apps?.length > 0 ? [{ key: 'apps', label: 'Integrations' }] : []),
+  ];
+
+  return (
+    <>
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <>
+          <StatRow>
+            <StatBox label="Integrations" value={data.integrations_total || 0} />
+            <StatBox label="Service Checks" value={data.services_total || 0} />
+            <StatBox label="Healthy" value={data.services_up || 0} />
+            <StatBox label="Down" value={data.services_down || 0} valueColor={data.services_down > 0 ? 'red' : undefined} />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Uptime" value={fmtUptime(data.uptime)} />
+            {data.version && <StatBox label="Version" value={data.version} small />}
+            <StatBox label="Response" value={`${data.response_time || 0}ms`} small />
+          </StatRow>
+          {data.host && (
+            <>
+              <div className="section-label mt-[12px]">Host</div>
+              <StatRow>
+                <StatBox label="Hostname" value={data.host.hostname || '—'} small truncate />
+                <StatBox label="Platform" value={data.host.os || '—'} small />
+                <StatBox label="Arch" value={data.host.arch || '—'} small />
+                {data.host.docker && <StatBox label="Docker" value="Yes" small />}
+              </StatRow>
+            </>
+          )}
+          {data.integrations && Object.keys(data.integrations).length > 0 && (
+            <>
+              <div className="section-label mt-[12px]">Connected Apps</div>
+              <div className="flex flex-wrap gap-[6px]">
+                {Object.entries(data.integrations).map(([name, count]) => (
+                  <span key={name} className="text-[11px] px-[8px] py-[3px] rounded-[var(--radius-tag)] bg-s2 border border-bd text-t2 font-medium capitalize">
+                    {name} <span className="text-t3 font-mono ml-[2px]">×{count}</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {tab === 'services' && (
+        <>
+          <div className="text-[11px] text-t3 uppercase tracking-[0.1em] font-semibold mb-[10px]">Service Health Checks</div>
+          <ItemList>
+            {data.services.map((svc, i) => (
+              <ItemRow key={i}
+                name={svc.name}
+                sub={svc.output ? `${svc.output}${fmtSince(svc.since) ? ` · up since ${fmtSince(svc.since)}` : ''}` : null}
+                dot={svc.state === 'ok' ? 'green' : 'red'}
+                value={svc.state === 'ok' ? 'OK' : 'DOWN'}
+                valueColor={svc.state === 'ok' ? undefined : 'red'}
+              />
+            ))}
+          </ItemList>
+        </>
+      )}
+
+      {tab === 'apps' && (
+        <>
+          <div className="text-[11px] text-t3 uppercase tracking-[0.1em] font-semibold mb-[10px]">Integrated Applications</div>
+          <ItemList>
+            {data.apps.map((app, i) => (
+              <ItemRow key={i}
+                name={app.name}
+                tag={app.type}
+                dot={app.up ? 'green' : 'red'}
+                value={app.version || (app.up ? 'Online' : 'Offline')}
+                valueColor={app.up ? undefined : 'red'}
+              />
+            ))}
+          </ItemList>
+        </>
+      )}
+    </>
   );
 }
 
@@ -952,19 +1135,87 @@ function ImmichDetail({ data }) {
 }
 
 function NextcloudDetail({ data }) {
+  const [tab, setTab] = useState('overview');
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'system', label: 'System' },
+  ];
+
   return (
     <>
-      <StatRow>
-        <StatBox label="Files" value={fmt(data.files)} />
-        <StatBox label="Active 24h" value={data.active_users_24h} />
-        <StatBox label="Active 5m" value={data.active_users_5min} />
-      </StatRow>
-      <StatRow>
-        <StatBox label="Shares" value={data.shares} small />
-        <StatBox label="Apps" value={data.apps_installed} small />
-        <StatBox label="DB" value={data.db_size || '—'} small />
-      </StatRow>
-      {data.storage_pct != null && <ProgressBar label={`Storage (${data.storage_used || '?'} / ${data.storage_total || '?'})`} pct={data.storage_pct} />}
+      <div className="flex gap-[4px] mb-[14px] border-b border-bd pb-[8px]">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`py-[5px] px-[12px] rounded-[var(--radius-tag)] text-[12px] font-medium transition-colors
+              ${tab === t.key ? 'bg-s2 text-t border border-bd2' : 'text-t3 border border-transparent hover:text-t2'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <>
+          <StatRow>
+            <StatBox label="Files" value={fmt(data.files)} />
+            <StatBox label="Users" value={data.users_total || 0} />
+            <StatBox label="Active 24h" value={data.active_users_24h || 0} />
+            <StatBox label="Active 5m" value={data.active_users_5min || 0} />
+          </StatRow>
+          <StatRow>
+            <StatBox label="Shares" value={data.shares || 0} small />
+            {data.shares_fed_sent > 0 && <StatBox label="Fed Sent" value={data.shares_fed_sent} small />}
+            {data.shares_fed_received > 0 && <StatBox label="Fed Recv" value={data.shares_fed_received} small />}
+            <StatBox label="Apps" value={data.apps_installed || 0} small />
+            {data.apps_updates > 0 && <StatBox label="Updates" value={data.apps_updates} valueColor="amber" small />}
+          </StatRow>
+          <StatRow>
+            <StatBox label="Storage Free" value={data.storage_free || '—'} small />
+            <StatBox label="DB Size" value={data.db_size || '—'} small />
+            {data.storages > 0 && <StatBox label="Storages" value={`${data.storages_local || 0} local, ${data.storages_other || 0} ext`} small />}
+          </StatRow>
+          {data.version && (
+            <StatRow>
+              <StatBox label="Version" value={data.version} small />
+              {data.response_time && <StatBox label="Response" value={`${data.response_time}ms`} small />}
+            </StatRow>
+          )}
+        </>
+      )}
+
+      {tab === 'system' && (
+        <>
+          <StatRow>
+            <StatBox label="CPU 1m" value={data.cpu_load != null ? `${data.cpu_load}%` : '—'} />
+            {data.cpu_load_5 != null && <StatBox label="CPU 5m" value={`${data.cpu_load_5}%`} />}
+            {data.cpu_load_15 != null && <StatBox label="CPU 15m" value={`${data.cpu_load_15}%`} />}
+          </StatRow>
+          {data.memory_pct != null && (
+            <ProgressBar
+              label={`Memory${data.memory_used && data.memory_total ? ` (${data.memory_used} / ${data.memory_total})` : ''}`}
+              pct={data.memory_pct}
+              value={`${data.memory_pct.toFixed(1)}%`}
+              color={data.memory_pct > 90 ? 'red' : data.memory_pct > 80 ? 'amber' : undefined}
+            />
+          )}
+          {data.swap_pct > 0 && (
+            <ProgressBar
+              label={`Swap${data.swap_used && data.swap_total ? ` (${data.swap_used} / ${data.swap_total})` : ''}`}
+              pct={data.swap_pct}
+              value={`${data.swap_pct.toFixed(1)}%`}
+            />
+          )}
+          <div className="section-label mt-[12px]">Server</div>
+          <StatRow>
+            {data.webserver && <StatBox label="Web Server" value={data.webserver} small truncate />}
+            {data.php_version && <StatBox label="PHP" value={data.php_version} small />}
+          </StatRow>
+          <StatRow>
+            {data.db_type && <StatBox label="Database" value={`${data.db_type}${data.db_version ? ` ${data.db_version}` : ''}`} small truncate />}
+            {data.php_memory_limit && <StatBox label="PHP Mem Limit" value={data.php_memory_limit} small />}
+            {data.php_upload_max && <StatBox label="Upload Max" value={data.php_upload_max} small />}
+          </StatRow>
+        </>
+      )}
     </>
   );
 }
@@ -1248,7 +1499,7 @@ const detailRenderers = {
   redis_server: RedisDetail,
   searxng: GenericDetail,
   open_webui: GenericDetail,
-  notifiarr: GenericDetail,
+  notifiarr: NotifiarrDetail,
   iperf3: Iperf3Detail,
   seerr: SeerrDetail,
   phpmyadmin: GenericDetail,
