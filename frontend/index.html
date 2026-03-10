@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>Homelab Dashboard</title>
+    <script>
+      // Apply customisation from localStorage before first paint
+      (function() {
+        // Legacy keys migration
+        var legacyName = localStorage.getItem('hl_name');
+        var legacyBg = localStorage.getItem('hl_bg_colour');
+        var legacyImg = localStorage.getItem('hl_bg_image');
+
+        var raw = localStorage.getItem('hl_custom');
+        var s = {};
+        try { if (raw) s = JSON.parse(raw); } catch(e) {}
+
+        // Migrate legacy keys into new format
+        if (legacyName && !s.name) s.name = legacyName;
+        if (legacyBg && !s.bgColour) s.bgColour = legacyBg;
+        if (legacyImg && !s.bgImage) s.bgImage = legacyImg;
+        if (legacyName || legacyBg || legacyImg) {
+          localStorage.setItem('hl_custom', JSON.stringify(s));
+          localStorage.removeItem('hl_name');
+          localStorage.removeItem('hl_bg_colour');
+          localStorage.removeItem('hl_bg_image');
+        }
+
+        // Dashboard name
+        if (s.name) document.title = s.name + ' Dashboard';
+
+        // CSS variable map
+        var cssMap = {
+          bgColour: '--color-bg', cardBg: '--color-s1', cardBg2: '--color-s2', cardBg3: '--color-s3',
+          borderColour: '--color-bd', borderColour2: '--color-bd2',
+          textPrimary: '--color-t', textSecondary: '--color-t2', textTertiary: '--color-t3',
+          accentInfra: '--color-infra', accentMedia: '--color-media', accentNetwork: '--color-network',
+          accentMonitoring: '--color-monitoring', accentSecurity: '--color-security',
+          accentDownloads: '--color-downloads', accentAutomation: '--color-automation', accentMisc: '--color-misc',
+          statusOnline: '--color-green', statusWarning: '--color-amber', statusOffline: '--color-red',
+          sparkCpu: '--spark-cpu', sparkRam: '--spark-ram',
+          graphCpu: '--graph-cpu', graphRam: '--graph-ram', graphTemp: '--graph-temp',
+          graphDocker: '--graph-docker', graphUpload: '--graph-upload', graphDownload: '--graph-download',
+          graphGeneric: '--graph-generic',
+        };
+        var root = document.documentElement;
+        for (var key in cssMap) {
+          if (s[key]) root.style.setProperty(cssMap[key], s[key]);
+        }
+
+        // Radius
+        if (s.cardRadius != null) root.style.setProperty('--radius-card', s.cardRadius + 'px');
+        if (s.innerRadius != null) root.style.setProperty('--radius-inner', s.innerRadius + 'px');
+
+        // Background image
+        if (s.bgImage) {
+          document.body.style.backgroundImage = 'url(' + s.bgImage + ')';
+          document.body.style.backgroundSize = 'cover';
+          document.body.style.backgroundAttachment = 'fixed';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+services:
+  homelab:
+    build: .
+    # Or use the pre-built image:
+    # image: yourusername/homelab-dashboard:latest
+    container_name: homelab-dashboard
+    ports:
+      - "8080:80"
+    volumes:
+      - homelab-data:/app/backend/data
+    environment:
+      # Security secrets — auto-generated if left empty
+      - JWT_ACCESS_SECRET=
+      - JWT_REFRESH_SECRET=
+      - CREDENTIAL_ENCRYPTION_KEY=
+      # Initial admin credentials (only used on first run)
+      - INITIAL_ADMIN_USER=admin
+      - INITIAL_ADMIN_PASS=changeme
+    restart: unless-stopped
+
+volumes:
+  homelab-data:
